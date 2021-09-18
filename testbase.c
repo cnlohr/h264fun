@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <math.h>
 
 // Based on
 // https://yumichan.net/video-processing/video-compression/introduction-to-h264-nal-unit/
@@ -101,6 +103,9 @@ void EmitUE( int64_t data )
 
 #define BuildNALU( ref_idc, unit_type ) ( ( (ref_idc ) << 5 ) | ( unit_type ) )
 
+int blk_x = 16;
+int blk_y = 16;
+
 int main()
 {
 	EmitU( 0x00000001, 32 );
@@ -118,8 +123,8 @@ int main()
 	EmitUE( 0 ); // log2_max_pic_order_cnt_lsb_minus4
 	EmitUE( 0 ); // num_ref_frames (we only send I slices) ** Fix me.
 	EmitU( 0, 1 );
-	EmitUE( 7 ); // pic_width_in_mbs_minus_1.  (128 px)
-	EmitUE( 7 ); // pic_height_in_map_units_minus_1.   (128 px)
+	EmitUE( blk_x-1 ); // pic_width_in_mbs_minus_1.  (128 px)
+	EmitUE( blk_y-1 ); // pic_height_in_map_units_minus_1.   (128 px)
 	EmitU( 1, 1 ); // We will not to field/frame encoding.
 	EmitU( 0, 1 ); // Used for B slices. We will not send B slices.
 	EmitU( 0, 1 ); // We will not do frame cropping.
@@ -140,9 +145,9 @@ int main()
 	EmitUE( 0 ); //num_ref_idx_l1_active_minus1
 	EmitU( 1, 1 ); // weighted_pred_flag
 	EmitU( 2, 2 ); // weighted_bipred_idc
-	EmitSE( -3 ); //pic_init_qp_minus26
+	EmitSE( 0 ); //pic_init_qp_minus26 (was -3)
 	EmitSE( 0 ); //pic_init_qs_minus26
-	EmitSE( -2 ); //chroma_qp_index_offset
+	EmitSE( 0 ); //chroma_qp_index_offset (was -2 )
 	EmitU( 0, 1 ); //deblocking_filter_control_present_flag
 	EmitU( 0, 1 ); //constrained_intra_pred_flag
 	EmitU( 0, 1 ); //redundant_pic_cnt_present_flag
@@ -153,59 +158,48 @@ int main()
 	{
 		EmitU( 0x00000001, 32 );
 		EmitU( BuildNALU( 3, 5 ), 8 ); //NALU "5 = coded slice of an IDR picture"
-		EmitUE( 1 ); //First MB in Slice
+		EmitUE( 0 ); //first_mb_in_slice 0 = new frame.
 		EmitUE( 7 ); //I-slice only. (slice_type == 7 (I slice))
-		EmitUE( 0 ); //pic_parameter_set_id
+		EmitUE( 0 ); //pic_parameter_set_id (which pic parameter set are we using?)
 		EmitU( i, 16 );	//frame_num
 		EmitUE( 0 ); // idr_pic_id
 		EmitU( 0, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)
-		EmitU( 1, 2 ); // ??? ??? ???
-		EmitSE( -3 ); // slice_qp_delta 
-
-		//mb_field_decoding_flag?
+		EmitU( 0, 2 ); // ??? ??? ???
+		EmitSE( 0 ); // slice_qp_delta 
 
 		int k;
-		for( k = 0; k < 64 ; k++ )
+		for( k = 0; k < blk_x*blk_y; k++ )
 		{
+			int kx = k % blk_x;
+			int ky = k / blk_x;
+			// macroblock_layer
+
 			EmitUE( 25 ); //I_PCM=25 (mb_type)
 			EmitFlush();
 			//"Sample construction process for I_PCM macroblocks "
 			int j;
 			for( j = 0; j < 256; j++ )
 			{
-				EmitU( rand(), 8 );
+				int px = j % 16;
+				int py = j / 16;
+				px -= 8;
+				py -= 8;
+				int r = sqrt( px*px+py*py );
+				EmitU( sin(r+i+kx+ky*5)*127+128, 8 );
 			}
-			for( j = 0; j < 128; j++ )
+			for( j = 0; j < 64; j++ )
 			{
-				EmitU( rand(), 8 );
+				//Monochrome = 128 here.
+				EmitU( kx*15+2, 8 );
+			}
+			for( j = 0; j < 64; j++ )
+			{
+				//Monochrome = 128 here.
+				EmitU( ky*15+2, 8 );
 			}
 		}
-		// Origial 
-		//               65 88 84 00 FF 94 01 B1 66 05 CB 02 9D 62 C2 DB 64 32 44 58 0D 9C 21 64 F0 BD A7 BF E5 A3 8C 5A 72 15 3B 2F DC 00 19 70 26 74 DB 18 01 F1 00 00 00 01 41 9A 24 6C 4B FF 87 00 4A C0
-		//XX             65 88 80 00 00 0C C3 B1 66 05 CB 02 9D 62 C2 DB 64 32 44 58 0D 9C 21 64 F0 BD A7 BF E5 A3 8C 5A 72 15 3B 2F DC 00 19 70 26 74 DB 18 01 F1 << mine
-	/*	EmitU( 0x31, 7);
-		EmitU( 0x6605CB02, 32 ); 
-		EmitU( 0x9D62C2DB, 32 ); 
-		EmitU( 0x64324458, 32 );
-		EmitU( 0x0D9C2164, 32 ); 
-		EmitU( 0xF0BDA7BF, 32 ); 
-		EmitU( 0xE5A38C5A, 32 ); 
-		EmitU( 0x72153B2F, 32 ); 
-		EmitU( 0xDC001970, 32 ); 
-		EmitU( 0x2674DB18, 32 ); 
-		EmitU( 0x01F1, 16 );*/
+		EmitUE( 0 ); // Is this right?
 		EmitFlush();
 	}
-/*
-	int i;
-	for( i = 0; i < 1000; i++ )
-	{
-		EmitU( 0x00000001, 32 );
-		EmitU( 0x419A246C, 32 );
-		EmitU( 0x4BFF8700, 32 );
-		EmitU( 0x4AC0, 16 );
-		EmitFlush();
-	} 
-*/
 }
 

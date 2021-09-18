@@ -5,7 +5,7 @@ all : testbase testbase.h264 128x128.h264 testdec
 
 
 testbase : testbase.c
-	$(CC) -o $@ $^
+	$(CC) -o $@ $^ -lm
 
 testbase.h264 : testbase
 	./$< > $@
