@@ -7,7 +7,7 @@
 // https://yumichan.net/video-processing/video-compression/introduction-to-h264-nal-unit/
 // https://www.cardinalpeak.com/blog/the-h-264-sequence-parameter-set
 
-
+FILE * fOut;
 static uint8_t bytesofar;
 static uint8_t bitssofarm7 = 7;
 
@@ -20,7 +20,7 @@ void EmitU( uint32_t data, int bits )
 		bytesofar |= b << bitssofarm7;
 		if( bitssofarm7-- == 0 )
 		{
-			putchar( bytesofar );
+			fputc( bytesofar, fOut );
 			bytesofar = 0;
 			bitssofarm7 = 7;
 		}
@@ -31,7 +31,7 @@ void EmitFlush()
 {
 	if( bitssofarm7 != 7 )
 	{
-		putchar( bytesofar ); 
+		fputc( bytesofar, fOut ); 
 		bytesofar = 0;
 		bitssofarm7 = 7;
 	}
@@ -108,12 +108,13 @@ int blk_y = 16;
 
 int main()
 {
+	fOut = fopen( "testbase.h264", "wb" );
 	EmitU( 0x00000001, 32 );
 
 	//seq_parameter_set_rbsp()
 	EmitU( BuildNALU( 3, 7 ), 8 ); //NALU "7 = sequence parameter set"
 	EmitU( 66, 8 ); // Baseline Profile  (WAS ORIGINALLY 66)
-	EmitU( 1, 1 );  // We're not going to honor constraints. constraint_set0_flag? (We are 66 compliant)
+	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set0_flag? (We are 66 compliant) TODO: REVISIT
 	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set1_flag?
 	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set2_flag?
 	EmitU( 0, 1 );  // We're not going to honor constraints. / reserved
@@ -142,7 +143,7 @@ int main()
 		EmitU( 0, 1 ); // chroma_loc_info_present_flag = 0
 		EmitU( 1, 1 ); //timing_info_present_flag = 1
 			EmitU( 1000, 32 ); // num_units_in_tick = 1
-			EmitU( 30000, 32 ); // time_scale = 50
+			EmitU( 60000, 32 ); // time_scale = 50
 			EmitU( 0, 1 ); // fixed_frame_rate_flag = 0
 		EmitU( 0, 1 ); // nal_hrd_parameters_present_flag = 0
 		EmitU( 0, 1 ); // vcl_hrd_parameters_present_flag = 0
@@ -236,5 +237,7 @@ int main()
 		EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
 		EmitFlush();
 	}
+	
+	fclose( fOut );
 }
 

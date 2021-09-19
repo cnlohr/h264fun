@@ -7,7 +7,7 @@ testbase : testbase.c
 	$(CC) -o $@ $^ -lm
 
 testbase.h264 : testbase
-	./$< > $@
+	./$<
 
 testbase.mp4 : testbase.h264
 	ffmpeg -i testbase.h264 -vcodec copy -fflags +genpts -an testbase.mp4
