@@ -113,10 +113,10 @@ int main()
 	//seq_parameter_set_rbsp()
 	EmitU( BuildNALU( 3, 7 ), 8 ); //NALU "7 = sequence parameter set"
 	EmitU( 66, 8 ); // Baseline Profile  (WAS ORIGINALLY 66)
-	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set0_flag?
+	EmitU( 1, 1 );  // We're not going to honor constraints. constraint_set0_flag? (We are 66 compliant)
 	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set1_flag?
 	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set2_flag?
-	EmitU( 0, 1 );  // We're not going to honor constraints.
+	EmitU( 0, 1 );  // We're not going to honor constraints. / reserved
 	EmitU( 0, 4 );  // Reserved 
 	EmitU( 10, 8 ); // level_idc = 11     (ORIGINALLY 10!!!)         Level 1, sec A.3.1.
 	EmitUE( 0 );    // seq_parameter_set_id = 0
