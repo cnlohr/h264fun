@@ -109,26 +109,50 @@ int blk_y = 16;
 int main()
 {
 	EmitU( 0x00000001, 32 );
+
+	//seq_parameter_set_rbsp()
 	EmitU( BuildNALU( 3, 7 ), 8 ); //NALU "7 = sequence parameter set"
-	EmitU( 66, 8 ); // Baseline Profile
-	EmitU( 0, 1 );  // We're not going to honor constraints.
-	EmitU( 0, 1 );  // We're not going to honor constraints.
-	EmitU( 0, 1 );  // We're not going to honor constraints.
+	EmitU( 66, 8 ); // Baseline Profile  (WAS ORIGINALLY 66)
+	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set0_flag?
+	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set1_flag?
+	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set2_flag?
 	EmitU( 0, 1 );  // We're not going to honor constraints.
 	EmitU( 0, 4 );  // Reserved 
-	EmitU( 10, 8 ); //Level 1, sec A.3.1.
-	EmitUE( 0 ); // seq_parameter_set_id = 0
-	EmitUE( 12 ); // log2_max_frame_num_minus4
-	EmitUE( 0 ); // pic_order_cnt_type
-	EmitUE( 0 ); // log2_max_pic_order_cnt_lsb_minus4
-	EmitUE( 0 ); // num_ref_frames (we only send I slices) ** Fix me.
-	EmitU( 0, 1 );
+	EmitU( 10, 8 ); // level_idc = 11     (ORIGINALLY 10!!!)         Level 1, sec A.3.1.
+	EmitUE( 0 );    // seq_parameter_set_id = 0
+	EmitUE( 12 );   // log2_max_frame_num_minus4  (16-bit frame numbers)
+	EmitUE( 0 );    // pic_order_cnt_type
+		EmitUE( 0 );    // log2_max_pic_order_cnt_lsb_minus4
+	EmitUE( 0 );    // num_ref_frames (we only send I slices) (I think this is right)
+	EmitU( 1, 1 );	// gaps_in_frame_num_value_allowed_flag  ( =0 says we can't skip frames.)
 	EmitUE( blk_x-1 ); // pic_width_in_mbs_minus_1.  (128 px)
 	EmitUE( blk_y-1 ); // pic_height_in_map_units_minus_1.   (128 px)
-	EmitU( 1, 1 ); // We will not to field/frame encoding.
-	EmitU( 0, 1 ); // Used for B slices. We will not send B slices.
-	EmitU( 0, 1 ); // We will not do frame cropping.
-	EmitU( 0, 1 ); // We will not send VUI data.
+	EmitU( 1, 1 ); // frame_mbs_only_flag = 1 //We will not to field/frame encoding.
+	EmitU( 0, 1 ); // direct_8x8_inference_flag = 0 // Used for B slices. We will not send B slices.
+	EmitU( 0, 1 ); // frame_cropping_flag = 0
+	EmitU( 1, 1 ); // vui_parameters_present_flag = 1
+		//vui_parameters()
+		EmitU( 1, 1 ); // aspect_ratio_info_present_flag = 1
+			EmitU( 1, 8 ); // 1:1 Square
+		EmitU( 0, 1 ); // overscan_info_present_flag = 0
+		EmitU( 0, 1 ); // video_signal_type_present_flag = 0
+		EmitU( 0, 1 ); // chroma_loc_info_present_flag = 0
+		EmitU( 1, 1 ); //timing_info_present_flag = 1
+			EmitU( 1000, 32 ); // num_units_in_tick = 1
+			EmitU( 30000, 32 ); // time_scale = 50
+			EmitU( 0, 1 ); // fixed_frame_rate_flag = 0
+		EmitU( 0, 1 ); // nal_hrd_parameters_present_flag = 0
+		EmitU( 0, 1 ); // vcl_hrd_parameters_present_flag = 0
+		EmitU( 0, 1 ); // pic_struct_present_flag = 0
+		EmitU( 1, 1 ); // bitstream_restriction_flag = 1
+			EmitU( 0, 1 ); // No motion vectors over pic boundaries
+			EmitUE( 0 ); //max_bytes_per_pic_denom
+			EmitUE( 0 ); //max_bits_per_mb_denom
+			EmitUE( 9 ); //log2_max_mv_length_horizontal
+			EmitUE( 9 ); //log2_max_mv_length_vertical
+			EmitUE( 2 ); //num_reorder_frames
+			EmitUE( 4 ); //max_dec_frame_buffering
+
 	EmitU( 1, 1 ); // Stop bit.
 	EmitFlush();
 
@@ -141,30 +165,37 @@ int main()
 	EmitU( 0, 1 ); //entropy_coding_mode_flag (OFF, LEFT COLUMN)
 	EmitU( 0, 1 ); //pic_order_present_flag
 	EmitUE( 0 ); //num_slice_groups_minus1
-	EmitUE( 2 ); //num_ref_idx_l0_active_minus1
+	EmitUE( 0 ); //num_ref_idx_l0_active_minus1 >>> THIS IS SUSPICIOUS (WAS 2)
 	EmitUE( 0 ); //num_ref_idx_l1_active_minus1
-	EmitU( 1, 1 ); // weighted_pred_flag
-	EmitU( 2, 2 ); // weighted_bipred_idc
+	EmitU( 0, 1 ); // weighted_pred_flag (was 1)
+	EmitU( 0, 2 ); // weighted_bipred_idc (Was 2)
 	EmitSE( 0 ); //pic_init_qp_minus26 (was -3)
 	EmitSE( 0 ); //pic_init_qs_minus26
 	EmitSE( 0 ); //chroma_qp_index_offset (was -2 )
 	EmitU( 0, 1 ); //deblocking_filter_control_present_flag
 	EmitU( 0, 1 ); //constrained_intra_pred_flag
-	EmitU( 0, 1 ); //redundant_pic_cnt_present_flag
+	EmitU( 0, 1 ); //redundant_pic_cnt_present_flag = 0
 	EmitFlush();
 
 	int i;
-	for( i = 0; i < 200; i++ )
+	for( i = 0; i < 100; i++ )
 	{
+	//slice_layer_without_partitioning_rbsp()
 		EmitU( 0x00000001, 32 );
-		EmitU( BuildNALU( 3, 5 ), 8 ); //NALU "5 = coded slice of an IDR picture"
+		// slice_header();
+		EmitU( BuildNALU( 3, 5 ), 8 ); //NALU "5 = coded slice of an IDR picture"   nal_ref_idc = 3, nal_unit_type = 5 
 		EmitUE( 0 ); //first_mb_in_slice 0 = new frame.
 		EmitUE( 7 ); //I-slice only. (slice_type == 7 (I slice))
 		EmitUE( 0 ); //pic_parameter_set_id (which pic parameter set are we using?)
 		EmitU( i, 16 );	//frame_num
 		EmitUE( 0 ); // idr_pic_id
-		EmitU( 0, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)
-		EmitU( 0, 2 ); // ??? ??? ???
+			//pic_order_cnt_type => 0
+			EmitU( 0, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)
+
+		//ref_pic_list_reordering() -> Nothing
+		//dec_ref_pic_marking(()
+			EmitU( 0, 1 ); // no_output_of_prior_pics_flag = 0
+			EmitU( 0, 1 ); // long_term_reference_flag = 0
 		EmitSE( 0 ); // slice_qp_delta 
 
 		int k;
@@ -172,11 +203,11 @@ int main()
 		{
 			int kx = k % blk_x;
 			int ky = k / blk_x;
-			// macroblock_layer
+			// this is a "macroblock_layer"
 
 			EmitUE( 25 ); //I_PCM=25 (mb_type)
 			EmitFlush();
-			//"Sample construction process for I_PCM macroblocks "
+			// "Sample construction process for I_PCM macroblocks "
 			int j;
 			for( j = 0; j < 256; j++ )
 			{
@@ -189,16 +220,16 @@ int main()
 			}
 			for( j = 0; j < 64; j++ )
 			{
-				//Monochrome = 128 here.
+				//U (Colors)
 				EmitU( kx*15+2, 8 );
 			}
 			for( j = 0; j < 64; j++ )
 			{
-				//Monochrome = 128 here.
+				//V (Colors)
 				EmitU( ky*15+2, 8 );
 			}
 		}
-		EmitUE( 0 ); // Is this right?
+		EmitUE( 25 ); // Is this right? 
 		EmitFlush();
 	}
 }
