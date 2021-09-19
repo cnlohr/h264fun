@@ -124,7 +124,7 @@ int main()
 	EmitUE( 0 );    // pic_order_cnt_type
 		EmitUE( 0 );    // log2_max_pic_order_cnt_lsb_minus4
 	EmitUE( 0 );    // num_ref_frames (we only send I slices) (I think this is right)
-	EmitU( 1, 1 );	// gaps_in_frame_num_value_allowed_flag  ( =0 says we can't skip frames.)
+	EmitU( 0, 1 );	// gaps_in_frame_num_value_allowed_flag  ( =0 says we can't skip frames.)
 	EmitUE( blk_x-1 ); // pic_width_in_mbs_minus_1.  (128 px)
 	EmitUE( blk_y-1 ); // pic_height_in_map_units_minus_1.   (128 px)
 	EmitU( 1, 1 ); // frame_mbs_only_flag = 1 //We will not to field/frame encoding.
@@ -135,7 +135,10 @@ int main()
 		EmitU( 1, 1 ); // aspect_ratio_info_present_flag = 1
 			EmitU( 1, 8 ); // 1:1 Square
 		EmitU( 0, 1 ); // overscan_info_present_flag = 0
-		EmitU( 0, 1 ); // video_signal_type_present_flag = 0
+		EmitU( 1, 1 ); // video_signal_type_present_flag = 1
+			EmitU( 0, 3 ); //video_format
+			EmitU( 1, 1 ); //video_full_range_flag
+			EmitU( 0, 1 ); //colour_description_present_flag = 0
 		EmitU( 0, 1 ); // chroma_loc_info_present_flag = 0
 		EmitU( 1, 1 ); //timing_info_present_flag = 1
 			EmitU( 1000, 32 ); // num_units_in_tick = 1
@@ -153,7 +156,7 @@ int main()
 			EmitUE( 2 ); //num_reorder_frames
 			EmitUE( 4 ); //max_dec_frame_buffering
 
-	EmitU( 1, 1 ); // Stop bit.
+	EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
 	EmitFlush();
 
 	//pps (need to be ID 0)
@@ -175,6 +178,7 @@ int main()
 	EmitU( 0, 1 ); //deblocking_filter_control_present_flag
 	EmitU( 0, 1 ); //constrained_intra_pred_flag
 	EmitU( 0, 1 ); //redundant_pic_cnt_present_flag = 0
+	EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
 	EmitFlush();
 
 	int i;
@@ -184,9 +188,9 @@ int main()
 		EmitU( 0x00000001, 32 );
 		// slice_header();
 		EmitU( BuildNALU( 3, 5 ), 8 ); //NALU "5 = coded slice of an IDR picture"   nal_ref_idc = 3, nal_unit_type = 5 
-		EmitUE( 0 ); //first_mb_in_slice 0 = new frame.
-		EmitUE( 7 ); //I-slice only. (slice_type == 7 (I slice))
-		EmitUE( 0 ); //pic_parameter_set_id (which pic parameter set are we using?)
+		EmitUE( 0 );    //first_mb_in_slice 0 = new frame.
+		EmitUE( 7 );    //I-slice only. (slice_type == 7 (I slice))
+		EmitUE( 0 );    //pic_parameter_set_id = 0 (referencing pps 0)
 		EmitU( i, 16 );	//frame_num
 		EmitUE( 0 ); // idr_pic_id
 			//pic_order_cnt_type => 0
@@ -196,7 +200,7 @@ int main()
 		//dec_ref_pic_marking(()
 			EmitU( 0, 1 ); // no_output_of_prior_pics_flag = 0
 			EmitU( 0, 1 ); // long_term_reference_flag = 0
-		EmitSE( 0 ); // slice_qp_delta 
+		EmitSE( -3 ); // slice_qp_delta 
 
 		int k;
 		for( k = 0; k < blk_x*blk_y; k++ )
@@ -229,7 +233,7 @@ int main()
 				EmitU( ky*15+2, 8 );
 			}
 		}
-		EmitUE( 25 ); // Is this right? 
+		EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
 		EmitFlush();
 	}
 }
