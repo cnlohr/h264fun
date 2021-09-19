@@ -126,8 +126,8 @@ int main()
 		EmitUE( 0 );    // log2_max_pic_order_cnt_lsb_minus4
 	EmitUE( 0 );    // num_ref_frames (we only send I slices) (I think this is right)
 	EmitU( 0, 1 );	// gaps_in_frame_num_value_allowed_flag  ( =0 says we can't skip frames.)
-	EmitUE( blk_x-1 ); // pic_width_in_mbs_minus_1.  (128 px)
-	EmitUE( blk_y-1 ); // pic_height_in_map_units_minus_1.   (128 px)
+	EmitUE( blk_x-1 ); // pic_width_in_mbs_minus_1.  (x16 px)
+	EmitUE( blk_y-1 ); // pic_height_in_map_units_minus_1.   (x16 px)
 	EmitU( 1, 1 ); // frame_mbs_only_flag = 1 //We will not to field/frame encoding.
 	EmitU( 0, 1 ); // direct_8x8_inference_flag = 0 // Used for B slices. We will not send B slices.
 	EmitU( 0, 1 ); // frame_cropping_flag = 0
