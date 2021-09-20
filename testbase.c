@@ -163,13 +163,10 @@ int main()
 	//pps (need to be ID 0)
 	// 00 00 00 01 68 // EB E3 CB 22 C0 (OLD)
 
-
-	int slice;
-
 	// "PPS"
 	EmitU( 0x00000001, 32 );
 	EmitU( BuildNALU( 3, 8 ), 8 ); // nal_unit_type = 8 = pic_parameter_set_rbsp( )
-	EmitUE( slice ); // pic_parameter_set_id
+	EmitUE( 0 ); // pic_parameter_set_id  (Do we need more, so we can define other PPS types to encode with?)
 	EmitUE( 0 ); // seq_parameter_set_id
 	EmitU( 0, 1 ); //entropy_coding_mode_flag (OFF, LEFT COLUMN)
 	EmitU( 0, 1 ); //pic_order_present_flag
@@ -187,63 +184,173 @@ int main()
 	EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
 	EmitFlush();
 
+
+	/*
+		From the spec, a truncated glossary and notes:
+			access unit: A set of NAL units always containing exactly one primary coded picture.
+
+			arbitrary slice order: (We probably want this off) the order of coded slice of an
+				IDR picture NAL units shall be in the order of increasing macroblock address
+				for the first macroblock of each coded slice of an IDR picture NAL unit.
+	*/
+
+
 	int i;
 	for( i = 0; i < 100; i++ )
 	{
-	//slice_layer_without_partitioning_rbsp()
-		int slice = 0;
-		EmitU( 0x00000001, 32 );
-
-		EmitU( BuildNALU( 3, 5 ), 8 ); //NALU "5 = coded slice of an IDR picture"   nal_ref_idc = 3, nal_unit_type = 5 
-
-		// slice_header();
-		EmitUE( slice*16 );    //first_mb_in_slice 0 = new frame.
-		EmitUE( 7 );    //I-slice only. (slice_type == 7 (I slice))
-		EmitUE( 0 );    //pic_parameter_set_id = 0 (referencing pps 0)
-		EmitU( i, 16 );	//frame_num
-		EmitUE( 0 ); // idr_pic_id
-			//pic_order_cnt_type => 0
-			EmitU( slice, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)
-
-		//ref_pic_list_reordering() -> Nothing
-		//dec_ref_pic_marking(()
-			EmitU( 0, 1 ); // no_output_of_prior_pics_flag = 0
-			EmitU( 0, 1 ); // long_term_reference_flag = 0
-		EmitSE( -3 ); // slice_qp_delta 
-
-		int k;
-		for( k = 0; k < blk_x*blk_y; k++ )
+		if( i == 0 )
+		//if( 1 )
 		{
-			int kx = k % blk_x;
-			int ky = k / blk_x;
-			// this is a "macroblock_layer"
+			int slice = 0;
+			for( slice = 0; slice < blk_y; slice++ )
+			{
+				//slice_layer_without_partitioning_rbsp()
+				EmitU( 0x00000001, 32 );
 
-			EmitUE( 25 ); //I_PCM=25 (mb_type)
-			EmitFlush();
-			// "Sample construction process for I_PCM macroblocks "
-			int j;
-			for( j = 0; j < 256; j++ )
-			{
-				int px = j % 16;
-				int py = j / 16;
-				px -= 8;
-				py -= 8;
-				int r = sqrt( px*px+py*py );
-				EmitU( sin(r+i+kx+ky*5)*127+128, 8 );
-			}
-			for( j = 0; j < 64; j++ )
-			{
-				//U (Colors)
-				EmitU( kx*15, 8 );
-			}
-			for( j = 0; j < 64; j++ )
-			{
-				//V (Colors)
-				EmitU( ky*15, 8 );
+				//NALU "5 = coded slice of an IDR picture"   nal_ref_idc = 3, nal_unit_type = 5 
+				// IDR = A coded picture containing only slices with I or SI slice types
+				EmitU( BuildNALU( 3, 5 ), 8 ); 
+
+				// slice_header();
+				EmitUE( slice*16 );    //first_mb_in_slice 0 = new frame.
+				EmitUE( 7 );    //I-slice only. (slice_type == 7 (I slice))
+				EmitUE( 0 );    //pic_parameter_set_id = 0 (referencing pps 0)
+				EmitU( i, 16 );	//frame_num
+				EmitUE( 0 ); // idr_pic_id
+					//pic_order_cnt_type => 0
+					EmitU( 0, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)  (TODO: REVISIT)?
+
+				//ref_pic_list_reordering() -> Nothing
+				//dec_ref_pic_marking(()
+					EmitU( 0, 1 ); // no_output_of_prior_pics_flag = 0
+					EmitU( 0, 1 ); // long_term_reference_flag = 0
+				EmitSE( -3 ); // slice_qp_delta 
+
+				int k;
+				for( k = 0; k < blk_x; k++ )
+				{
+					int kx = k % blk_x;
+					int ky = slice;//k / blk_x;
+					// this is a "macroblock_layer"
+
+					//if( ( k + slice ) & 1 )
+					if( 1 )
+					{
+						//Send an I_PCM macroblock, lossless.
+						EmitUE( 25 ); //I_PCM=25 (mb_type)
+						EmitFlush();
+						// "Sample construction process for I_PCM macroblocks "
+						int j;
+						for( j = 0; j < 256; j++ )
+						{
+							int px = j % 16;
+							int py = j / 16;
+							px -= 8;
+							py -= 8;
+							int r = sqrt( px*px+py*py );
+							EmitU( sin(r+i+kx+ky*5)*127+128, 8 );
+						}
+						for( j = 0; j < 64; j++ )
+						{
+							//U (Colors)
+							EmitU( kx*15, 8 );
+						}
+						for( j = 0; j < 64; j++ )
+						{
+							//V (Colors)
+							EmitU( ky*15, 8 );
+						}
+					}
+					else
+					{
+						// TODO Later
+						//EmitUE( 1 ); //I_16x16_0_0_0
+						
+					}
+				}
+				EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
+				EmitFlush();
 			}
 		}
-		EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
-		EmitFlush();
+		else
+		{
+			int slice = 0;
+			for( slice = 0; slice < 10; slice++ )
+			{
+				//slice_layer_without_partitioning_rbsp()
+				EmitU( 0x00000001, 32 );
+
+				//NALU "1 = coded slice of a non-IDR picture"   nal_ref_idc = 3, nal_unit_type = 1 
+				// IDR = A coded picture containing only slices with I or SI slice types
+				EmitU( BuildNALU( 3, 1 ), 8 ); 
+
+				// slice_layer_without_partitioning_rbsp()
+
+				// slice_header();
+				EmitUE( slice*10 );    //first_mb_in_slice 0 = new frame.
+				EmitUE( 5 );    //P-slice only. (slice_type == 5 (P slice))  (P and I allowed macroblocks)
+				EmitUE( 0 );    //pic_parameter_set_id = 0 (referencing pps 0)
+				EmitU( i, 16 );	//frame_num
+
+				EmitU( 0, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)
+
+				EmitU( 0, 1 ); // num_ref_idx_active_override_flag = 0
+
+				//ref_pic_list_reordering()
+					EmitU( 0, 1 ); //ref_pic_list_reordering_flag_l0
+
+				//ref_pic_list_reordering() -> Nothing
+				//dec_ref_pic_marking(()
+					EmitU( 0, 1 ); // adaptive_ref_pic_marking_mode_flag = 0
+
+				EmitSE( -3 ); // slice_qp_delta 
+				
+				int k;
+				for( k = 0; k < 1; k++ )
+				{
+					int kx = k % blk_x;
+					int ky = slice;//k / blk_x;
+
+					//slice_data(()
+
+					EmitUE( 0 );  //mb_skip_run
+
+					// this is a "macroblock_layer"
+
+					{
+						//Send an I_PCM macroblock, lossless.
+						EmitUE( 25+5 ); //I_PCM=25 (mb_type)  (see 
+							// "The macroblock types for P and SP slices are specified in Table 7-10 and Table 7-8. mb_type values 0 to 4 are specified
+							// in Table 7-10 and mb_type values 5 to 30 are specified in Table 7-8, indexed by subtracting 5 from the value of
+							// mb_type."
+						EmitFlush();
+						// "Sample construction process for I_PCM macroblocks "
+						int j;
+						for( j = 0; j < 256; j++ )
+						{
+							int px = j % 16;
+							int py = j / 16;
+							px -= 8;
+							py -= 8;
+							int r = sqrt( px*px+py*py );
+							EmitU( sin(r+i+kx+ky*5)*127+128, 8 );
+						}
+						for( j = 0; j < 64; j++ )
+						{
+							//U (Colors)
+							EmitU( 128, 8 );
+						}
+						for( j = 0; j < 64; j++ )
+						{
+							//V (Colors)
+							EmitU( 128, 8 );
+						}
+					}
+				}
+				EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
+				EmitFlush();
+			}
+		}
 	}
 	
 	fclose( fOut );
