@@ -143,7 +143,7 @@ int main()
 		EmitU( 0, 1 ); // chroma_loc_info_present_flag = 0
 		EmitU( 1, 1 ); //timing_info_present_flag = 1
 			EmitU( 1000, 32 ); // num_units_in_tick = 1
-			EmitU( 60000, 32 ); // time_scale = 50
+			EmitU( 30000, 32 ); // time_scale = 50
 			EmitU( 0, 1 ); // fixed_frame_rate_flag = 0
 		EmitU( 0, 1 ); // nal_hrd_parameters_present_flag = 0
 		EmitU( 0, 1 ); // vcl_hrd_parameters_present_flag = 0
@@ -198,9 +198,9 @@ int main()
 	int i;
 	for( i = 0; i < 100; i++ )
 	{
-		if( i == 0 )
+		//if( i == 0 )
 		//if( (i%10) == 0 )
-		//if( 1 )
+		if( 1 )
 		{
 			int slice = 0;
 			//for( slice = 0; slice < blk_y; slice++ )
