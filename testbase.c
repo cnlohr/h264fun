@@ -114,7 +114,7 @@ int main()
 	//seq_parameter_set_rbsp()
 	EmitU( BuildNALU( 3, 7 ), 8 ); //NALU "7 = sequence parameter set"
 	EmitU( 66, 8 ); // Baseline Profile  (WAS ORIGINALLY 66)
-	EmitU( 1, 1 );  // We're not going to honor constraints. constraint_set0_flag? (We are 66 compliant) TODO: REVISIT
+	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set0_flag? (We are 66 compliant) TODO: REVISIT
 	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set1_flag?  XXX TODO: Without this we can't have multiple groupled slices.
 	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set2_flag?
 	EmitU( 0, 1 );  // We're not going to honor constraints. / reserved
@@ -199,6 +199,7 @@ int main()
 	for( i = 0; i < 100; i++ )
 	{
 		if( i == 0 )
+		//if( (i%10) == 0 )
 		//if( 1 )
 		{
 			int slice = 0;
@@ -275,7 +276,7 @@ int main()
 		else
 		{
 			int slice = 0;
-			for( slice = 0; slice < 10; slice++ )
+			for( slice = 0; slice < 16; slice++ )
 			{
 				//slice_layer_without_partitioning_rbsp()
 				EmitU( 0x00000001, 32 );
@@ -287,7 +288,7 @@ int main()
 				// slice_layer_without_partitioning_rbsp()
 
 				// slice_header();
-				EmitUE( slice*10 );    //first_mb_in_slice 0 = new frame.
+				EmitUE( slice*16 );    //first_mb_in_slice 0 = new frame.
 				EmitUE( 5 );    //P-slice only. (slice_type == 5 (P slice))  (P and I allowed macroblocks)
 				EmitUE( 0 );    //pic_parameter_set_id = 0 (referencing pps 0)
 				EmitU( i, 16 );	//frame_num
@@ -313,8 +314,10 @@ int main()
 
 					//slice_data(()
 
-					EmitUE( 0 );  //mb_skip_run
+					int toskip = rand()%16;
+					EmitUE( toskip );  //mb_skip_run
 
+					int col = (rand()%4);
 					// this is a "macroblock_layer"
 
 					{
@@ -333,7 +336,16 @@ int main()
 							px -= 8;
 							py -= 8;
 							int r = sqrt( px*px+py*py );
-							EmitU( sin(r+i+kx+ky*5)*127+128, 8 );
+							if( col == 0 )
+								EmitU( 0, 8 );
+							else if( col == 1 )
+								EmitU( 255, 8 );
+							else if( col == 2 )
+								EmitU( ((px+py)&1)*255, 8 );
+							else if( col == 3 )
+								EmitU( (j), 8 );
+							else
+								EmitU( sin(r+i+kx+ky*5)*127+128, 8 );
 						}
 						for( j = 0; j < 64; j++ )
 						{
@@ -346,6 +358,10 @@ int main()
 							EmitU( 128, 8 );
 						}
 					}
+
+					//Skip rest of line.
+					if( toskip != 15 )
+						EmitUE( 15-toskip );  //mb_skip_run
 				}
 				EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
 				EmitFlush();
