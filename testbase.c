@@ -114,8 +114,8 @@ int main()
 	//seq_parameter_set_rbsp()
 	EmitU( BuildNALU( 3, 7 ), 8 ); //NALU "7 = sequence parameter set"
 	EmitU( 66, 8 ); // Baseline Profile  (WAS ORIGINALLY 66)
-	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set0_flag? (We are 66 compliant) TODO: REVISIT
-	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set1_flag?
+	EmitU( 1, 1 );  // We're not going to honor constraints. constraint_set0_flag? (We are 66 compliant) TODO: REVISIT
+	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set1_flag?  XXX TODO: Without this we can't have multiple groupled slices.
 	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set2_flag?
 	EmitU( 0, 1 );  // We're not going to honor constraints. / reserved
 	EmitU( 0, 4 );  // Reserved 
@@ -162,9 +162,14 @@ int main()
 
 	//pps (need to be ID 0)
 	// 00 00 00 01 68 // EB E3 CB 22 C0 (OLD)
+
+
+	int slice;
+
+	// "PPS"
 	EmitU( 0x00000001, 32 );
-	EmitU( BuildNALU( 3, 8 ), 8 ); //NALU "5 = coded slice of an IDR picture"
-	EmitUE( 0 ); // pic_parameter_set_id
+	EmitU( BuildNALU( 3, 8 ), 8 ); // nal_unit_type = 8 = pic_parameter_set_rbsp( )
+	EmitUE( slice ); // pic_parameter_set_id
 	EmitUE( 0 ); // seq_parameter_set_id
 	EmitU( 0, 1 ); //entropy_coding_mode_flag (OFF, LEFT COLUMN)
 	EmitU( 0, 1 ); //pic_order_present_flag
@@ -186,16 +191,19 @@ int main()
 	for( i = 0; i < 100; i++ )
 	{
 	//slice_layer_without_partitioning_rbsp()
+		int slice = 0;
 		EmitU( 0x00000001, 32 );
-		// slice_header();
+
 		EmitU( BuildNALU( 3, 5 ), 8 ); //NALU "5 = coded slice of an IDR picture"   nal_ref_idc = 3, nal_unit_type = 5 
-		EmitUE( 0 );    //first_mb_in_slice 0 = new frame.
+
+		// slice_header();
+		EmitUE( slice*16 );    //first_mb_in_slice 0 = new frame.
 		EmitUE( 7 );    //I-slice only. (slice_type == 7 (I slice))
 		EmitUE( 0 );    //pic_parameter_set_id = 0 (referencing pps 0)
 		EmitU( i, 16 );	//frame_num
 		EmitUE( 0 ); // idr_pic_id
 			//pic_order_cnt_type => 0
-			EmitU( 0, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)
+			EmitU( slice, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)
 
 		//ref_pic_list_reordering() -> Nothing
 		//dec_ref_pic_marking(()
@@ -226,12 +234,12 @@ int main()
 			for( j = 0; j < 64; j++ )
 			{
 				//U (Colors)
-				EmitU( kx*15+2, 8 );
+				EmitU( kx*15, 8 );
 			}
 			for( j = 0; j < 64; j++ )
 			{
 				//V (Colors)
-				EmitU( ky*15+2, 8 );
+				EmitU( ky*15, 8 );
 			}
 		}
 		EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
