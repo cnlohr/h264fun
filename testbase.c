@@ -203,7 +203,7 @@ int main()
 		//if( 1 )
 		{
 			int slice = 0;
-			for( slice = 0; slice < blk_y; slice++ )
+			//for( slice = 0; slice < blk_y; slice++ )
 			{
 				//slice_layer_without_partitioning_rbsp()
 				EmitU( 0x00000001, 32 );
@@ -228,7 +228,7 @@ int main()
 				EmitSE( -3 ); // slice_qp_delta 
 
 				int k;
-				for( k = 0; k < blk_x; k++ )
+				for( k = 0; k < blk_x*blk_y; k++ )
 				{
 					int kx = k % blk_x;
 					int ky = slice;//k / blk_x;
