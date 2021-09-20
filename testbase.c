@@ -231,7 +231,9 @@ int main()
 				for( k = 0; k < blk_x*blk_y; k++ )
 				{
 					int kx = k % blk_x;
-					int ky = slice;//k / blk_x;
+					int ky = 
+							//slice;
+							k / blk_x;
 					// this is a "macroblock_layer"
 
 					//if( ( k + slice ) & 1 )
@@ -254,12 +256,12 @@ int main()
 						for( j = 0; j < 64; j++ )
 						{
 							//U (Colors)
-							EmitU( kx*15, 8 );
+							EmitU( kx*15+1, 8 );
 						}
 						for( j = 0; j < 64; j++ )
 						{
 							//V (Colors)
-							EmitU( ky*15, 8 );
+							EmitU( ky*15+1, 8 );
 						}
 					}
 					else
