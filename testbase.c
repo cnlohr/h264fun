@@ -101,6 +101,8 @@ void EmitUE( int64_t data )
 	EmitU( data, numbits );
 }
 
+
+
 #define BuildNALU( ref_idc, unit_type ) ( ( (ref_idc ) << 5 ) | ( unit_type ) )
 
 int blk_x = 16;
@@ -114,12 +116,14 @@ int main()
 	//seq_parameter_set_rbsp()
 	EmitU( BuildNALU( 3, 7 ), 8 ); //NALU "7 = sequence parameter set"
 	EmitU( 66, 8 ); // Baseline Profile  (WAS ORIGINALLY 66)
-	EmitU( 1, 1 );  // We're not going to honor constraints. constraint_set0_flag? (We are 66 compliant) TODO: REVISIT
+	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set0_flag? (We are 66 compliant) TODO: REVISIT
 	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set1_flag?  XXX TODO: Without this we can't have multiple groupled slices.
 	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set2_flag?
 	EmitU( 0, 1 );  // We're not going to honor constraints. / reserved
 	EmitU( 0, 4 );  // Reserved 
-	EmitU( 10, 8 ); // level_idc = 11     (ORIGINALLY 10!!!)         Level 1, sec A.3.1.
+	EmitU( 41, 8 ); // level_idc = 41 (4.1)       Level 1, sec A.3.1.   See "Table A-1 – Level limits"
+		//Conformance to a particular level shall be specified by setting the syntax element level_idc equal to a value of ten times
+		// the level number specified in Table A-1.
 	EmitUE( 0 );    // seq_parameter_set_id = 0
 	EmitUE( 12 );   // log2_max_frame_num_minus4  (16-bit frame numbers)
 	EmitUE( 0 );    // pic_order_cnt_type
@@ -143,7 +147,7 @@ int main()
 		EmitU( 0, 1 ); // chroma_loc_info_present_flag = 0
 		EmitU( 1, 1 ); //timing_info_present_flag = 1
 			EmitU( 1000, 32 ); // num_units_in_tick = 1
-			EmitU( 30000, 32 ); // time_scale = 50
+			EmitU( 60000, 32 ); // time_scale = 50
 			EmitU( 0, 1 ); // fixed_frame_rate_flag = 0
 		EmitU( 0, 1 ); // nal_hrd_parameters_present_flag = 0
 		EmitU( 0, 1 ); // vcl_hrd_parameters_present_flag = 0
@@ -179,7 +183,7 @@ int main()
 	EmitSE( 0 ); //pic_init_qs_minus26
 	EmitSE( 0 ); //chroma_qp_index_offset (was -2 )
 	EmitU( 0, 1 ); //deblocking_filter_control_present_flag
-	EmitU( 0, 1 ); //constrained_intra_pred_flag
+	EmitU( 1, 1 ); //constrained_intra_pred_flag=1 don't use predictive coding everywhere.
 	EmitU( 0, 1 ); //redundant_pic_cnt_present_flag = 0
 	EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
 	EmitFlush();
@@ -192,11 +196,19 @@ int main()
 			arbitrary slice order: (We probably want this off) the order of coded slice of an
 				IDR picture NAL units shall be in the order of increasing macroblock address
 				for the first macroblock of each coded slice of an IDR picture NAL unit.
+
+		Gotchas:
+			* On Android, specifically, it appears an I-Frame's size may not exceed 90ish% of the
+				uncompressed size.  This means you can't fill an IFRAME with purely I_PCM
+				blocks.  Only 95ish% of your blocks can be I_PCM.
+
 	*/
 
 
+
+
 	int i;
-	for( i = 0; i < 100; i++ )
+	for( i = 0; i < 10; i++ )
 	{
 		//if( i == 0 )
 		//if( (i%10) == 0 )
@@ -219,13 +231,13 @@ int main()
 				EmitU( i, 16 );	//frame_num
 				EmitUE( 0 ); // idr_pic_id
 					//pic_order_cnt_type => 0
-					EmitU( 0, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)  (TODO: REVISIT)?
+					EmitU( i, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)  (TODO: REVISIT)?
 
 				//ref_pic_list_reordering() -> Nothing
 				//dec_ref_pic_marking(()
 					EmitU( 0, 1 ); // no_output_of_prior_pics_flag = 0
 					EmitU( 0, 1 ); // long_term_reference_flag = 0
-				EmitSE( -3 ); // slice_qp_delta 
+				EmitSE( 0 ); // slice_qp_delta 
 
 				int k;
 				for( k = 0; k < blk_x*blk_y; k++ )
@@ -234,11 +246,11 @@ int main()
 					int ky = 
 							//slice;
 							k / blk_x;
-					// this is a "macroblock_layer"
 
 					//if( ( k + slice ) & 1 )
-					if( 1 )
+					if( ky < 10 )
 					{
+						// this is a "macroblock_layer"
 						//Send an I_PCM macroblock, lossless.
 						EmitUE( 25 ); //I_PCM=25 (mb_type)
 						EmitFlush();
@@ -266,9 +278,45 @@ int main()
 					}
 					else
 					{
-						// TODO Later
-						//EmitUE( 1 ); //I_16x16_0_0_0
-						
+#if 0
+						// macroblock_layer()
+						EmitUE( 1 ); // mb_type = I_16x16_0_0_0
+						// I_16x16_0_0_0 -> Intra16x16PredMode = 0, CodedBlockPatternChroma = 0, CodedBlockPatternLuma = 0
+						// MbPartPredMode( mb_type, 0 ) = Intra_16x16
+						//mb_pred()
+							EmitUE( 0 ); // intra_chroma_pred_mode = 0 for DC.
+						//coded_block_pattern -> me(v)
+						// me(v): mapped Exp-Golomb-coded syntax element with the left bit first. 
+						//			The parsing process for this descriptor is specified in subclause 9.1.
+						// ...
+						// Otherwise, if the syntax element is coded as me(v), the value of the syntax element
+						// is derived by invoking the mapping process for coded block pattern as specified in
+						// subclause 9.1.2 with codeNum as the input.
+						EmitSE( 0 );
+
+						//residual();
+						//residual_block_cavlc
+						//residual_block_cavlc( Intra16x16DCLevel, 16 )
+						//  For no residual, set TotalCoeff( coeff_token ) = 0
+						EmitUE( 0 ); //coeff_token
+						EmitUE( 0 );
+						//CodedBlockPatternLuma = 0, CodedBlockPatternChroma = 0, so no additional residuals.
+#endif
+
+						//Instead, let's try some I4x4's
+						// macroblock_layer()
+						EmitUE( 0 ); //mb_type = I_4x4 
+								//CodedBlockPatternChroma = coded_block_pattern / 16
+								//CodedBlockPatternLuma = coded_block_pattern % 16
+								//set coded_block_pattern = 0  (codeNum = 3)
+						//mb_pred( mb_type )  -> mb_pred( 0 )
+							EmitU( 1, 16 );
+							EmitUE( 0 ); // intra_chroma_pred_mode = 0 for DC.
+
+						//coded_block_pattern
+						EmitUE( 47 );
+
+						EmitUE( 0 ); //coeff_token
 					}
 				}
 				EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
@@ -306,7 +354,7 @@ int main()
 				//dec_ref_pic_marking(()
 					EmitU( 0, 1 ); // adaptive_ref_pic_marking_mode_flag = 0
 
-				EmitSE( -3 ); // slice_qp_delta 
+				EmitSE( 0 ); // slice_qp_delta 
 				
 				int k;
 				for( k = 0; k < 1; k++ )
