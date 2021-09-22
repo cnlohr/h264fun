@@ -154,12 +154,12 @@ int main()
 		EmitU( 0, 1 ); // pic_struct_present_flag = 0
 		EmitU( 1, 1 ); // bitstream_restriction_flag = 1
 			EmitU( 0, 1 ); // No motion vectors over pic boundaries
-			EmitUE( 0 ); //max_bytes_per_pic_denom
-			EmitUE( 0 ); //max_bits_per_mb_denom
+			EmitUE( 1 ); //max_bytes_per_pic_denom
+			EmitUE( 1 ); //max_bits_per_mb_denom // 1 should be sufficient for all PCM's but Android still no like it.
 			EmitUE( 9 ); //log2_max_mv_length_horizontal
 			EmitUE( 9 ); //log2_max_mv_length_vertical
-			EmitUE( 2 ); //num_reorder_frames
-			EmitUE( 4 ); //max_dec_frame_buffering
+			EmitUE( 0 ); //num_reorder_frames
+			EmitUE( 0 ); //max_dec_frame_buffering (?)
 
 	EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
 	EmitFlush();
@@ -249,6 +249,7 @@ int main()
 
 					//if( ( k + slice ) & 1 )
 					if( ky < 10 )
+					//if( 1 )
 					{
 						// this is a "macroblock_layer"
 						//Send an I_PCM macroblock, lossless.
@@ -310,13 +311,12 @@ int main()
 								//CodedBlockPatternLuma = coded_block_pattern % 16
 								//set coded_block_pattern = 0  (codeNum = 3)
 						//mb_pred( mb_type )  -> mb_pred( 0 )
-							EmitU( 1, 16 );
+							EmitU( 0, 16 );
 							EmitUE( 0 ); // intra_chroma_pred_mode = 0 for DC.
 
 						//coded_block_pattern
-						EmitUE( 47 );
-
-						EmitUE( 0 ); //coeff_token
+						//mb_qp_delta
+						EmitSE( -1 );
 					}
 				}
 				EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
