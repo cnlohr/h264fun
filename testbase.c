@@ -105,6 +105,9 @@ void EmitUE( int64_t data )
 
 #define BuildNALU( ref_idc, unit_type ) ( ( (ref_idc ) << 5 ) | ( unit_type ) )
 
+//int blk_x = 40;
+//int blk_y = 30;
+
 int blk_x = 16;
 int blk_y = 16;
 
@@ -115,7 +118,7 @@ int main()
 
 	//seq_parameter_set_rbsp()
 	EmitU( BuildNALU( 3, 7 ), 8 ); //NALU "7 = sequence parameter set"
-	EmitU( 66, 8 ); // Baseline Profile  (WAS ORIGINALLY 66)
+	EmitU( 66, 8 ); // Baseline Profile  (WAS ORIGINALLY 66)  // profile_idc 
 	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set0_flag? (We are 66 compliant) TODO: REVISIT
 	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set1_flag?  XXX TODO: Without this we can't have multiple groupled slices.
 	EmitU( 0, 1 );  // We're not going to honor constraints. constraint_set2_flag?
@@ -125,6 +128,17 @@ int main()
 		//Conformance to a particular level shall be specified by setting the syntax element level_idc equal to a value of ten times
 		// the level number specified in Table A-1.
 	EmitUE( 0 );    // seq_parameter_set_id = 0
+
+#if 0
+		// profile_idc = 100 -> lets us choose chroma. or select other from  //Selected from cbs_h264_syntax_template.c --> Not supported on Android.
+		EmitUE( 0 );   // chroma_format_idc = 3  => [ 256, 384, 512, 768 ] ff_h264_mb_sizes
+		//EmitU( 0, 1 ); // separate_colour_plane_flag = 1
+		EmitUE( 0 );   // bit_depth_luma_minus8 =0
+		EmitUE( 0 );   // bit_depth_chroma_minus8 = 0
+		EmitU( 0, 1 ); // qpprime_y_zero_transform_bypass_flag = 0
+		EmitU( 0, 1 ); // seq_scaling_matrix_present_flag = 0
+#endif
+
 	EmitUE( 12 );   // log2_max_frame_num_minus4  (16-bit frame numbers)
 	EmitUE( 0 );    // pic_order_cnt_type
 		EmitUE( 0 );    // log2_max_pic_order_cnt_lsb_minus4
@@ -204,18 +218,15 @@ int main()
 
 	*/
 
-
-
-
 	int i;
-	for( i = 0; i < 10; i++ )
+	for( i = 0; i < 40; i++ )
 	{
-		//if( i == 0 )
+		if( i == 0 )
 		//if( (i%10) == 0 )
-		if( 1 )
+		//if( 1 )
 		{
 			int slice = 0;
-			//for( slice = 0; slice < blk_y; slice++ )
+			for( slice = 0; slice < blk_y; slice++ )
 			{
 				//slice_layer_without_partitioning_rbsp()
 				EmitU( 0x00000001, 32 );
@@ -240,17 +251,19 @@ int main()
 				EmitSE( 0 ); // slice_qp_delta 
 
 				int k;
-				for( k = 0; k < blk_x*blk_y; k++ )
+				for( k = 0; k < blk_x; k++ )
 				{
 					int kx = k % blk_x;
 					int ky = 
-							//slice;
-							k / blk_x;
+							slice;
+							//k / blk_x;
 
 					//if( ( k + slice ) & 1 )
-					if( ky < 10 )
+					if( ky < blk_y-1 || kx < blk_x-4)
 					//if( 1 )
 					{
+						// SEE: ff_h264_decode_mb_cavlc
+
 						// this is a "macroblock_layer"
 						//Send an I_PCM macroblock, lossless.
 						EmitUE( 25 ); //I_PCM=25 (mb_type)
@@ -278,8 +291,7 @@ int main()
 						}
 					}
 					else
-					{
-#if 0
+					{  // The last few blocks need to be something simple.
 						// macroblock_layer()
 						EmitUE( 1 ); // mb_type = I_16x16_0_0_0
 						// I_16x16_0_0_0 -> Intra16x16PredMode = 0, CodedBlockPatternChroma = 0, CodedBlockPatternLuma = 0
@@ -293,30 +305,9 @@ int main()
 						// Otherwise, if the syntax element is coded as me(v), the value of the syntax element
 						// is derived by invoking the mapping process for coded block pattern as specified in
 						// subclause 9.1.2 with codeNum as the input.
-						EmitSE( 0 );
+						EmitSE( -5 ); //        dquant= get_se_golomb(&sl->gb);
+						EmitU( 5, 8 ); // ce(v) = 1 (ugly/tricky) + something else?  Not sure how residual_block_cavlc works.
 
-						//residual();
-						//residual_block_cavlc
-						//residual_block_cavlc( Intra16x16DCLevel, 16 )
-						//  For no residual, set TotalCoeff( coeff_token ) = 0
-						EmitUE( 0 ); //coeff_token
-						EmitUE( 0 );
-						//CodedBlockPatternLuma = 0, CodedBlockPatternChroma = 0, so no additional residuals.
-#endif
-
-						//Instead, let's try some I4x4's
-						// macroblock_layer()
-						EmitUE( 0 ); //mb_type = I_4x4 
-								//CodedBlockPatternChroma = coded_block_pattern / 16
-								//CodedBlockPatternLuma = coded_block_pattern % 16
-								//set coded_block_pattern = 0  (codeNum = 3)
-						//mb_pred( mb_type )  -> mb_pred( 0 )
-							EmitU( 0, 16 );
-							EmitUE( 0 ); // intra_chroma_pred_mode = 0 for DC.
-
-						//coded_block_pattern
-						//mb_qp_delta
-						EmitSE( -1 );
 					}
 				}
 				EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
@@ -326,7 +317,7 @@ int main()
 		else
 		{
 			int slice = 0;
-			for( slice = 0; slice < 16; slice++ )
+			for( slice = 0; slice < blk_y; slice++ )
 			{
 				//slice_layer_without_partitioning_rbsp()
 				EmitU( 0x00000001, 32 );
@@ -422,3 +413,41 @@ int main()
 	fclose( fOut );
 }
 
+
+
+/* Trunk
+
+
+#if 0 //Intra 4x4
+						//Instead, let's try some I_4x4's
+						// macroblock_layer()
+						EmitUE( 0 ); //mb_type = I_4x4 
+								//Intra_4x4 specifies the macroblock prediction mode and specifies that the Intra_4x4 prediction process is invoked as
+								//specified in subclause 8.3.1. Intra_4x4 is an Intra macroblock prediction mode.
+
+								//The luma component of a macroblock consists of 16 blocks of 4x4 luma samples. These blocks are inverse scanned
+								//using the 4x4 luma block inverse scanning process as specified in subclause 6.4.3.
+								//For all 4x4 luma blocks of the luma component of a macroblock with luma4x4BlkIdx = 0..15, the variable
+								//Intra4x4PredMode[ luma4x4BlkIdx ] is derived as specified in subclause 8.3.1.1.
+
+								// NOTE: 6.4.3 specifies I_4x4 Scan order two layers of Z ordering.
+
+								// We will want to use Intra4x4PredMode[ luma4x4BlkIdx ] = 2 --> Intra_4x4_DC
+
+								//set coded_block_pattern = 0  (codeNum = 3)
+
+
+						//mb_pred( mb_type )  -> mb_pred( 0 )
+							EmitU( 0, 16 );
+							EmitUE( 0 ); // intra_chroma_pred_mode = 0 for DC.
+
+						//coded_block_pattern
+						//mb_qp_delta
+						EmitSE( -1 );
+#endif
+// From FFMPeg  -> ff_h264_i_mb_type_info[1] = { MB_TYPE_INTRA16x16, 2,   0 },  { type, pred mode, cbp }
+//        cbp                      = ff_h264_i_mb_type_info[mb_type].cbp;
+//        sl->intra16x16_pred_mode = ff_h264_i_mb_type_info[mb_type].pred_mode;
+//        mb_type                  = ff_h264_i_mb_type_info[mb_type].type;
+
+*/
