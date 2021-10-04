@@ -219,7 +219,7 @@ int main()
 	*/
 
 	int i;
-	for( i = 0; i < 40; i++ )
+	for( i = 0; i < 100; i++ )
 	{
 		if( i == 0 )
 		//if( (i%10) == 0 )
@@ -251,7 +251,7 @@ int main()
 				EmitSE( 0 ); // slice_qp_delta 
 
 				int k;
-				for( k = 0; k < blk_x; k++ )
+				for( k = 0; k < 1; k++ )
 				{
 					int kx = k % blk_x;
 					int ky = 
@@ -259,8 +259,9 @@ int main()
 							//k / blk_x;
 
 					//if( ( k + slice ) & 1 )
-					if( ky < blk_y-1 || kx < blk_x-4)
+					//if( ky < blk_y-1 || kx < blk_x-4)
 					//if( 1 )
+					if(kx < 1 )
 					{
 						// SEE: ff_h264_decode_mb_cavlc
 
@@ -291,7 +292,8 @@ int main()
 						}
 					}
 					else
-					{  // The last few blocks need to be something simple.
+					{ 
+						 // The last few blocks need to be something simple.
 						// macroblock_layer()
 						EmitUE( 1 ); // mb_type = I_16x16_0_0_0
 						// I_16x16_0_0_0 -> Intra16x16PredMode = 0, CodedBlockPatternChroma = 0, CodedBlockPatternLuma = 0
@@ -307,7 +309,9 @@ int main()
 						// subclause 9.1.2 with codeNum as the input.
 						EmitSE( -5 ); //        dquant= get_se_golomb(&sl->gb);
 						EmitU( 5, 8 ); // ce(v) = 1 (ugly/tricky) + something else?  Not sure how residual_block_cavlc works.
-
+						EmitU( 0 + 0 * 32, i);
+						//EmitU( 5, 8 ); // ce(v) = 1 (ugly/tricky) + something else?  Not sure how residual_block_cavlc works.
+						EmitU( 1, 1 );
 					}
 				}
 				EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
