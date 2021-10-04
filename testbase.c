@@ -110,7 +110,7 @@ void EmitUE( int64_t data )
 //int blk_x = 40;
 //int blk_y = 30;
 
-int blk_x = 64;
+int blk_x = 128;
 int blk_y = 64;
 int slices = 4;
 
@@ -223,7 +223,7 @@ int main()
 	*/
 
 	int i;
-	for( i = 0; i < 100; i++ )
+	for( i = 0; i < 400; i++ )
 	{
 		if( i == 0 )
 		//if( (i%10) == 0 )
