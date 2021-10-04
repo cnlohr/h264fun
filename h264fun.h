@@ -39,7 +39,6 @@ void (*H264FunData)( void * opaque, uint8_t * data, int bytes );
 
 struct H264FunzieUpdate_t
 {
-	int mbid;
 	H264FunPayload pl;
 	uint8_t * data;
 };

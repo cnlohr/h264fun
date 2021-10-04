@@ -1,5 +1,8 @@
 #include "h264fun.h"
 
+static uint8_t H2mb_dark[384];
+
+
 // Sometimes written u(#)
 static void H2EmitU( H264Funzie * fun, uint32_t data, int bits )
 {
@@ -101,9 +104,8 @@ void H2EmitNAL( H264Funzie * fun )
 int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264FunData * datacb )
 {
 	// A completely dark frame.
-	uint8_t mb_dark[384];
-	memset( mb_dark, 0, 256 );
-	memset( mb_dark+256, 128, 128 );
+	memset( H2mb_dark, 0, 256 );
+	memset( H2mb_dark+256, 128, 128 );
 	
 	if( ( w & 0xf ) || ( h & 0xf ) ) return -1;
 	fun->bytesofar = 0;
@@ -235,7 +237,7 @@ int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264F
 			H2EmitUE( fun, 25 ); //I_PCM=25 (mb_type)
 			H2EmitFlush( fun );
 			
-			fun->datacb( fun->opaque, mb_dark, sizeof( mb_dark ) );
+			fun->datacb( fun->opaque, H2mb_dark, sizeof( H2mb_dark ) );
 		}
 		H2EmitU( fun, 1, 1 ); // Stop bit from rbsp_trailing_bits()
 		H2EmitFlush( fun );
@@ -264,6 +266,7 @@ int H264FUNPREFIX H264FunEmitFrame( H264Funzie * fun )
 	int stride = mbs/fun->slices;
 	int mb = 0;
 	int slice;
+	H264FunzieUpdate * updates = funzie->frameupdates;
 	for( slice = 0; slice < slices; slice++ )
 	{
 		H2EmitNAL( fun );
@@ -295,37 +298,59 @@ int H264FUNPREFIX H264FunEmitFrame( H264Funzie * fun )
 
 		H2EmitSE( fun, 0 ); // slice_qp_delta 
 		
-		int k;
-		for( k = 0; k < 1; k++ )
+		int mbend = mb + stride;
+
+		do
 		{
-			int kx = k % blk_x;
-			int ky = slice;//k / blk_x;
-
-			//slice_data(()
-
-			int toskip = rand()%(linestride);
-			H2EmitUE( fun, toskip );  //mb_skip_run
-
-			int col = (rand()%4);
-			// this is a "macroblock_layer"
-
+			int mbst = mb;
+			H264FunzieUpdate * thisupdate = updates + mb;
+			while( ( mb != mbend ) && ( thisupdate->pl != H264FUN_PAYLOAD_NONE ) )
 			{
-				//Send an I_PCM macroblock, lossless.
-				H2EmitUE( fun, 25+5 ); //I_PCM=25 (mb_type)  (see 
-					// "The macroblock types for P and SP slices are specified in Table 7-10 and Table 7-8. mb_type values 0 to 4 are specified
-					// in Table 7-10 and mb_type values 5 to 30 are specified in Table 7-8, indexed by subtracting 5 from the value of
-					// mb_type."
-				H2EmitFlush( fun );
-				// "Sample construction process for I_PCM macroblocks "
+				mb++;
+				thisupdate = updates + mb;
+			}
+			int skip = mb - mbst;
+			
+			H2EmitUE( fun, toskip );
 
-				fun->datacb( fun->opaque, DATA SIZE, 
-
+			if( mb == mbend )
+			{
+				break;
 			}
 
-			//Skip rest of line.
-			if( toskip != (linestride-1) )
-				H2EmitUE( fun, (linestride-1)-toskip );  //mb_skip_run
-		}
+			//Send an I_PCM macroblock, lossless.
+			H2EmitUE( fun, 25+5 ); //I_PCM=25 (mb_type)  (see 
+				// "The macroblock types for P and SP slices are specified in Table 7-10 and Table 7-8. mb_type values 0 to 4 are specified
+				// in Table 7-10 and mb_type values 5 to 30 are specified in Table 7-8, indexed by subtracting 5 from the value of
+				// mb_type."
+			H2EmitFlush( fun );
+			// "Sample construction process for I_PCM macroblocks "
+
+			switch( thisupdate->pl )
+			{
+			case H264FUN_PAYLOAD_EMPTY:
+				fun->datacb( fun->opaque, H2mb_dark, sizeof( H2mb_dark ) );
+				break;
+			case H264FUN_PAYLOAD_LUMA_ONLY:
+				fun->datacb( fun->opaque, DATA SIZE, thisupdate->data, 256 );
+				fun->datacb( fun->opaque, H2mb_dark+256, 128 );
+				free( thisupdate->data );
+				break;
+			case H264FUN_PAYLOAD_LUMA_ONLY_DO_NOT_FREE:
+				fun->datacb( fun->opaque, DATA SIZE, thisupdate->data, 256 );
+				fun->datacb( fun->opaque, H2mb_dark+256, 128 );
+				break;
+			case H264FUN_PAYLOAD_LUMA_AND_CHROMA:
+				fun->datacb( fun->opaque, DATA SIZE, thisupdate->data, 384 );
+				free( thisupdate->data );
+				break;
+			case H264FUN_PAYLOAD_LUMA_AND_CHROMA_DO_NOT_FREE:
+				fun->datacb( fun->opaque, DATA SIZE, thisupdate->data, 384 );
+				break;
+			}
+
+		} while( mb != mbend );
+		
 		H2EmitU( fun, 1, 1 ); // Stop bit from rbsp_trailing_bits()
 		H2EmitFlush( fun );
 	}
