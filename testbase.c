@@ -108,8 +108,9 @@ void EmitUE( int64_t data )
 //int blk_x = 40;
 //int blk_y = 30;
 
-int blk_x = 16;
+int blk_x = 32;
 int blk_y = 16;
+int slices = 2;
 
 int main()
 {
@@ -226,7 +227,7 @@ int main()
 		//if( 1 )
 		{
 			int slice = 0;
-			for( slice = 0; slice < blk_y; slice++ )
+			for( slice = 0; slice < slices; slice++ )
 			{
 				//slice_layer_without_partitioning_rbsp()
 				EmitU( 0x00000001, 32 );
@@ -236,7 +237,7 @@ int main()
 				EmitU( BuildNALU( 3, 5 ), 8 ); 
 
 				// slice_header();
-				EmitUE( slice*16 );    //first_mb_in_slice 0 = new frame.
+				EmitUE( slice*(blk_x*(blk_y/slices )));    //first_mb_in_slice 0 = new frame.
 				EmitUE( 7 );    //I-slice only. (slice_type == 7 (I slice))
 				EmitUE( 0 );    //pic_parameter_set_id = 0 (referencing pps 0)
 				EmitU( i, 16 );	//frame_num
@@ -321,7 +322,7 @@ int main()
 		else
 		{
 			int slice = 0;
-			for( slice = 0; slice < blk_y; slice++ )
+			for( slice = 0; slice < slices; slice++ )
 			{
 				//slice_layer_without_partitioning_rbsp()
 				EmitU( 0x00000001, 32 );
@@ -332,8 +333,10 @@ int main()
 
 				// slice_layer_without_partitioning_rbsp()
 
+				int linestride = blk_y/slices*blk_x;
+
 				// slice_header();
-				EmitUE( slice*16 );    //first_mb_in_slice 0 = new frame.
+				EmitUE( slice*linestride );    //first_mb_in_slice 0 = new frame.
 				EmitUE( 5 );    //P-slice only. (slice_type == 5 (P slice))  (P and I allowed macroblocks)
 				EmitUE( 0 );    //pic_parameter_set_id = 0 (referencing pps 0)
 				EmitU( i, 16 );	//frame_num
@@ -359,7 +362,7 @@ int main()
 
 					//slice_data(()
 
-					int toskip = rand()%16;
+					int toskip = rand()%linestride;
 					EmitUE( toskip );  //mb_skip_run
 
 					int col = (rand()%4);
@@ -405,8 +408,8 @@ int main()
 					}
 
 					//Skip rest of line.
-					if( toskip != 15 )
-						EmitUE( 15-toskip );  //mb_skip_run
+					if( toskip != (linestride-1) )
+						EmitUE( (linestride-1)-toskip );  //mb_skip_run
 				}
 				EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
 				EmitFlush();
