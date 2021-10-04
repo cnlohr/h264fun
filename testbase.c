@@ -110,9 +110,9 @@ void EmitUE( int64_t data )
 //int blk_x = 40;
 //int blk_y = 30;
 
-int blk_x = 128;
-int blk_y = 64;
-int slices = 4;
+int blk_x = 32;
+int blk_y = 16;
+int slices = 16;
 
 int main()
 {
@@ -234,13 +234,14 @@ int main()
 			{
 				//slice_layer_without_partitioning_rbsp()
 				EmitU( 0x00000001, 32 );
+				int slicestride = blk_x*blk_y/slices;
 
 				//NALU "5 = coded slice of an IDR picture"   nal_ref_idc = 3, nal_unit_type = 5 
 				// IDR = A coded picture containing only slices with I or SI slice types
 				EmitU( BuildNALU( 3, 5 ), 8 ); 
 
 				// slice_header();
-				EmitUE( slice*(blk_x*(blk_y/slices )));    //first_mb_in_slice 0 = new frame.
+				EmitUE( slice*slicestride );    //first_mb_in_slice 0 = new frame.
 				EmitUE( 7 );    //I-slice only. (slice_type == 7 (I slice))
 				EmitUE( 0 );    //pic_parameter_set_id = 0 (referencing pps 0)
 				EmitU( i, 16 );	//frame_num
@@ -264,8 +265,8 @@ int main()
 
 					//if( ( k + slice ) & 1 )
 					//if( ky < blk_y-1 || kx < blk_x-4)
-					//if( 1 )
-					if(kx < 1 )
+					if( 1 )
+					//if(kx < 1 )
 					{
 						// SEE: ff_h264_decode_mb_cavlc
 
@@ -275,24 +276,32 @@ int main()
 						EmitFlush();
 						// "Sample construction process for I_PCM macroblocks "
 						int j;
-						for( j = 0; j < 256; j++ )
+						if( 0 )
 						{
-							int px = j % 16;
-							int py = j / 16;
-							px -= 8;
-							py -= 8;
-							int r = sqrt( px*px+py*py );
-							EmitU( sin(r+i+kx+ky*5)*127+128, 8 );
+							for( j = 0; j < 256; j++ )
+							{
+								int px = j % 16;
+								int py = j / 16;
+								px -= 8;
+								py -= 8;
+								int r = sqrt( px*px+py*py );
+								EmitU( sin(r+i+kx+ky*5)*127+128, 8 );
+							}
+							for( j = 0; j < 64; j++ )
+							{
+								//U (Colors)
+								EmitU( kx*15+1, 8 );
+							}
+							for( j = 0; j < 64; j++ )
+							{
+								//V (Colors)
+								EmitU( ky*15+1, 8 );
+							}
 						}
-						for( j = 0; j < 64; j++ )
+						else
 						{
-							//U (Colors)
-							EmitU( kx*15+1, 8 );
-						}
-						for( j = 0; j < 64; j++ )
-						{
-							//V (Colors)
-							EmitU( ky*15+1, 8 );
+							for( j = 0; j < 256; j++ ) EmitU( 0, 8 ); //Black
+							for( j = 0; j < 128; j++ ) EmitU( 128, 8 ); //No Chroma
 						}
 					}
 					else
@@ -336,7 +345,7 @@ int main()
 
 				// slice_layer_without_partitioning_rbsp()
 
-				int linestride = blk_y/slices*blk_x;
+				int linestride = blk_x*blk_y/slices;
 
 				// slice_header();
 				EmitUE( slice*linestride );    //first_mb_in_slice 0 = new frame.
@@ -365,7 +374,7 @@ int main()
 
 					//slice_data(()
 
-					int toskip = rand()%linestride;
+					int toskip = rand()%(linestride);
 					EmitUE( toskip );  //mb_skip_run
 
 					int col = (rand()%4);
