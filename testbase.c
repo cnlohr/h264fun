@@ -14,12 +14,14 @@ static uint8_t bitssofarm7 = 7;
 // Sometimes written u(#)
 void EmitU( uint32_t data, int bits )
 {
+//	printf( "%d / %d / %02x\n", bits, bitssofarm7, bytesofar );
 	for( bits--; bits >= 0 ; bits-- )
 	{
 		uint8_t b = ( data >> bits ) & 1;
 		bytesofar |= b << bitssofarm7;
 		if( bitssofarm7-- == 0 )
 		{
+	//		printf( "Emit: %02x\n", bytesofar );
 			fputc( bytesofar, fOut );
 			bytesofar = 0;
 			bitssofarm7 = 7;
@@ -108,9 +110,9 @@ void EmitUE( int64_t data )
 //int blk_x = 40;
 //int blk_y = 30;
 
-int blk_x = 32;
-int blk_y = 16;
-int slices = 2;
+int blk_x = 64;
+int blk_y = 64;
+int slices = 4;
 
 int main()
 {
@@ -131,6 +133,7 @@ int main()
 	EmitUE( 0 );    // seq_parameter_set_id = 0
 
 #if 0
+		// THIS DOES NOT WORK!!!
 		// profile_idc = 100 -> lets us choose chroma. or select other from  //Selected from cbs_h264_syntax_template.c --> Not supported on Android.
 		EmitUE( 0 );   // chroma_format_idc = 3  => [ 256, 384, 512, 768 ] ff_h264_mb_sizes
 		//EmitU( 0, 1 ); // separate_colour_plane_flag = 1
@@ -172,7 +175,7 @@ int main()
 			EmitUE( 1 ); //max_bytes_per_pic_denom
 			EmitUE( 1 ); //max_bits_per_mb_denom // 1 should be sufficient for all PCM's but Android still no like it.
 			EmitUE( 9 ); //log2_max_mv_length_horizontal
-			EmitUE( 9 ); //log2_max_mv_length_vertical
+			EmitUE( 10 ); //log2_max_mv_length_vertical
 			EmitUE( 0 ); //num_reorder_frames
 			EmitUE( 0 ); //max_dec_frame_buffering (?)
 
