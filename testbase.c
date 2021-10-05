@@ -110,9 +110,9 @@ void EmitUE( int64_t data )
 //int blk_x = 40;
 //int blk_y = 30;
 
-int blk_x = 32;
+int blk_x = 16;
 int blk_y = 16;
-int slices = 16;
+int slices = 1;
 
 int main()
 {
@@ -256,17 +256,17 @@ int main()
 				EmitSE( 0 ); // slice_qp_delta 
 
 				int k;
-				for( k = 0; k < 1; k++ )
+				for( k = 0; k < blk_x; k++ )
 				{
 					int kx = k % blk_x;
 					int ky = 
-							slice;
-							//k / blk_x;
+							//slice;
+							k / blk_x;
 
 					//if( ( k + slice ) & 1 )
 					//if( ky < blk_y-1 || kx < blk_x-4)
-					if( 1 )
-					//if(kx < 1 )
+					//if( 1 )
+					if(kx < 1)
 					{
 						// SEE: ff_h264_decode_mb_cavlc
 
@@ -300,7 +300,7 @@ int main()
 						}
 						else
 						{
-							for( j = 0; j < 256; j++ ) EmitU( 0, 8 ); //Black
+							for( j = 0; j < 256; j++ ) EmitU( 1, 8 ); //Black
 							for( j = 0; j < 128; j++ ) EmitU( 128, 8 ); //No Chroma
 						}
 					}
@@ -308,23 +308,45 @@ int main()
 					{ 
 						 // The last few blocks need to be something simple.
 						// macroblock_layer()
-						EmitUE( 1 ); // mb_type = I_16x16_0_0_0
-						// I_16x16_0_0_0 -> Intra16x16PredMode = 0, CodedBlockPatternChroma = 0, CodedBlockPatternLuma = 0
+						EmitUE( 3 ); // mb_type = I_16x16_0_0_0 XXX no -> switching to another one.
+						// I_16x16_2_0_0 -> Intra16x16PredMode = 2 (DC), CodedBlockPatternChroma = 0, CodedBlockPatternLuma = 0
+						// Table 9-26  Binarization: 1 (I_16x16_0_0_0) 1 0 0 0 0 0
 						// MbPartPredMode( mb_type, 0 ) = Intra_16x16
 						//mb_pred()
 							EmitUE( 0 ); // intra_chroma_pred_mode = 0 for DC.
-						//coded_block_pattern -> me(v)
+						//coded_block_pattern -> me(v)  //NOTE: This is only for I_4x4
 						// me(v): mapped Exp-Golomb-coded syntax element with the left bit first. 
 						//			The parsing process for this descriptor is specified in subclause 9.1.
 						// ...
 						// Otherwise, if the syntax element is coded as me(v), the value of the syntax element
 						// is derived by invoking the mapping process for coded block pattern as specified in
 						// subclause 9.1.2 with codeNum as the input.
-						EmitSE( -5 ); //        dquant= get_se_golomb(&sl->gb);
-						EmitU( 5, 8 ); // ce(v) = 1 (ugly/tricky) + something else?  Not sure how residual_block_cavlc works.
-						EmitU( 0 + 0 * 32, i);
-						//EmitU( 5, 8 ); // ce(v) = 1 (ugly/tricky) + something else?  Not sure how residual_block_cavlc works.
+						EmitSE( 0 ); //    mb_qp_delta    dquant= get_se_golomb(&sl->gb);
+						// affects QPy, QP Y = ( QP Y,PREV + mb_qp_delta + 52 ) % 52
+						// must be -26 to +25,
+
+						//residual()
+						//residual_block_cavlc(coeffLevel = Intra16x16DCLevel, maxNumCoeff = 16)
+
+						//coeff_token  CE(V)
+						// Make TotalCoeff( coeff_token ) = 0
+
+						if( 1 )
+						{
+							EmitU( 1, 5 ); // Makes zero coefficients.
+						}
+						else
+						{
+							// This makes one coefficient.
+							EmitU( 0, 6 );		// 0 = mode 4 (1 coefficient) 1 = mode 5 (1 coefficient)  But 5 makes trailing_ones == total_coeff
+							EmitU( 1, 1 );		// Coefficient.					
+						}
+						// End residual();
+
+						// End bit.
 						EmitU( 1, 1 );
+
+
 					}
 				}
 				EmitU( 1, 1 ); // Stop bit from rbsp_trailing_bits()
@@ -397,7 +419,7 @@ int main()
 							py -= 8;
 							int r = sqrt( px*px+py*py );
 							if( col == 0 )
-								EmitU( 0, 8 );
+								EmitU( 1, 8 );
 							else if( col == 1 )
 								EmitU( 255, 8 );
 							else if( col == 2 )
