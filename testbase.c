@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <math.h>
+#include <sys/time.h>
 
 // Based on
 // https://yumichan.net/video-processing/video-compression/introduction-to-h264-nal-unit/
@@ -111,11 +112,14 @@ void EmitUE( int64_t data )
 //int blk_y = 30;
 
 int blk_x = 32;
-int blk_y = 16;
+int blk_y = 32;
 int slices = 16;
 
 int main()
 {
+	struct timeval current_time;
+	gettimeofday(&current_time, NULL);
+	srand( current_time.tv_usec );
 	fOut = fopen( "testbase.h264", "wb" );
 	EmitU( 0x00000001, 32 );
 
@@ -162,10 +166,12 @@ int main()
 			EmitU( 0, 3 ); //video_format
 			EmitU( 1, 1 ); //video_full_range_flag
 			EmitU( 0, 1 ); //colour_description_present_flag = 0
-		EmitU( 0, 1 ); // chroma_loc_info_present_flag = 0
+		EmitU( 1, 1 ); // chroma_loc_info_present_flag = 0
+			EmitUE( 0 );
+			EmitUE( 0 );
 		EmitU( 1, 1 ); //timing_info_present_flag = 1
 			EmitU( 1000, 32 ); // num_units_in_tick = 1
-			EmitU( 60000, 32 ); // time_scale = 50
+			EmitU( 30000, 32 ); // time_scale = 50
 			EmitU( 0, 1 ); // fixed_frame_rate_flag = 0
 		EmitU( 0, 1 ); // nal_hrd_parameters_present_flag = 0
 		EmitU( 0, 1 ); // vcl_hrd_parameters_present_flag = 0
@@ -256,7 +262,7 @@ int main()
 				EmitSE( 0 ); // slice_qp_delta 
 
 				int k;
-				for( k = 0; k < 1; k++ )
+//				for( k = 0; k < blk_x*blk_y/slices; k++ )
 				{
 					int kx = k % blk_x;
 					int ky = 
@@ -300,7 +306,7 @@ int main()
 						}
 						else
 						{
-							for( j = 0; j < 256; j++ ) EmitU( 0, 8 ); //Black
+							for( j = 0; j < 256; j++ ) EmitU( 128, 8 ); //Black
 							for( j = 0; j < 128; j++ ) EmitU( 128, 8 ); //No Chroma
 						}
 					}
@@ -375,9 +381,14 @@ int main()
 					//slice_data(()
 
 					int toskip = rand()%(linestride);
+					int col = (rand()%4);
+if( slice == 0 )
+{
+	toskip = 0;
+	col = 3;
+}
 					EmitUE( toskip );  //mb_skip_run
 
-					int col = (rand()%4);
 					// this is a "macroblock_layer"
 
 					{
@@ -397,9 +408,9 @@ int main()
 							py -= 8;
 							int r = sqrt( px*px+py*py );
 							if( col == 0 )
-								EmitU( 0, 8 );
+								EmitU( (j&0x1)?0:0xff, 8 );
 							else if( col == 1 )
-								EmitU( 255, 8 );
+								EmitU( 1, 8 );
 							else if( col == 2 )
 								EmitU( ((px+py)&1)*255, 8 );
 							else if( col == 3 )
@@ -410,7 +421,15 @@ int main()
 						for( j = 0; j < 64; j++ )
 						{
 							//U (Colors)
-							EmitU( 128, 8 );
+							//if( col == 1 || col == 3 )
+							if( i & 1 )
+							{
+								int cx = j%8;
+								int cy = j/8;
+								EmitU( ((cx+cy)&1)*254+1, 8 );
+							}
+							else
+								EmitU( 128, 8 );
 						}
 						for( j = 0; j < 64; j++ )
 						{
