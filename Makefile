@@ -3,8 +3,8 @@ all : testbase testbase.h264 128x128.h264 testdec testbase.mp4 testbase.mp4
 #~/git/h264Bitstream/h264_analyze testbase.h264  | less
 #ffmpeg -i testbase.h264 -vcodec copy -vbsf h265_mp4toannexb -an of.h264
 
-#FFMPEG:=~/git/FFmpeg/ffmpeg
-FFMPEG:=ffmpeg
+FFMPEG:=~/git/FFmpeg/ffmpeg
+#FFMPEG:=ffmpeg
 
 testbase : testbase.c
 	$(CC) -o $@ $^ -lm
