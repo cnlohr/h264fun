@@ -97,6 +97,7 @@ static void H2EmitUE( H264Funzie * fun, int64_t data )
 
 static void H2EmitNAL( H264Funzie * fun )
 {
+	printf( "NAL\n" );
 	H2EmitFlush( fun );
 	fun->datacb( fun->opaque, 0, -1 );
 }
@@ -117,10 +118,32 @@ static void FreeFunzieUpdate( struct H264FunzieUpdate_t * thisupdate )
 
 #define BuildNALU( ref_idc, unit_type ) ( ( (ref_idc ) << 5 ) | ( unit_type ) )
 
-int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264FunData datacb, void * opaque )
+
+static int H2GetParamValue( const H264ConfigParam * params, H264FunConfigType p )
 {
+	if( p >= H2FUN_MAX ) return 0;
+	static const int defaults[] = { 0, 1, 1000, 30000 }; 
+	int i;
+	if( params )
+	{
+		H264FunConfigType t;
+		for( i = 0; (t = params[i].type) != H2FUN_TERMINATOR; i++ )
+		{
+			if( t == p )
+			{
+				return params[i].value;
+			}
+		}
+	}
+	return defaults[p];
+}
+
+int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264FunData datacb, void * opaque, const H264ConfigParam * params )
+{
+	if( slices > MAX_H264FUNZIE_SLICES ) return -3;
+
 	// A completely dark frame.
-	memset( H2mb_dark, 0, 256 );
+	memset( H2mb_dark, 128, 256 );
 	memset( H2mb_dark+256, 128, 128 );
 	
 	if( ( w & 0xf ) || ( h & 0xf ) ) return -1;
@@ -172,10 +195,15 @@ int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264F
 			H2EmitU( fun, 1, 1 ); //video_full_range_flag
 			H2EmitU( fun, 0, 1 ); //colour_description_present_flag = 0
 		H2EmitU( fun, 0, 1 ); // chroma_loc_info_present_flag = 0
-		H2EmitU( fun, 1, 1 ); //timing_info_present_flag = 1
-			H2EmitU( fun, 1000, 32 ); // num_units_in_tick = 1
-			H2EmitU( fun, 60000, 32 ); // time_scale = 50
+
+		int e = H2GetParamValue( params, H2FUN_TIME_ENABLE );
+		H2EmitU( fun, e, 1 ); //timing_info_present_flag = 1
+		if( e )
+		{
+			H2EmitU( fun, H2GetParamValue( params, H2FUN_TIME_NUMERATOR ), 32 ); // num_units_in_tick = 1
+			H2EmitU( fun, H2GetParamValue( params, H2FUN_TIME_DENOMINATOR ), 32 ); // time_scale = 50
 			H2EmitU( fun, 0, 1 ); // fixed_frame_rate_flag = 0
+		}
 		H2EmitU( fun, 0, 1 ); // nal_hrd_parameters_present_flag = 0
 		H2EmitU( fun, 0, 1 ); // vcl_hrd_parameters_present_flag = 0
 		H2EmitU( fun, 0, 1 ); // pic_struct_present_flag = 0
@@ -266,11 +294,60 @@ int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264F
 	return 0;
 }
 
+void H264FUNPREFIX H264FakeIFrame( H264Funzie * fun )
+{
+	int slice = 0;
+	for( slice = 0; slice < fun->slices; slice++ )
+	{
+		//slice_layer_without_partitioning_rbsp()
+		H2EmitNAL( fun );
+		int slicestride = fun->mbw*fun->mbh/fun->slices;
+
+		//NALU "5 = coded slice of an IDR picture"   nal_ref_idc = 3, nal_unit_type = 5 
+		// IDR = A coded picture containing only slices with I or SI slice types
+		H2EmitU( fun, BuildNALU( 3, 5 ), 8 ); 
+
+		// slice_header();
+		H2EmitUE( fun, slice*slicestride );    //first_mb_in_slice 0 = new frame.
+		H2EmitUE( fun, 7 );    //I-slice only. (slice_type == 7 (I slice))
+		H2EmitUE( fun, 0 );    //pic_parameter_set_id = 0 (referencing pps 0)
+		H2EmitU( fun, fun->frameno, 16 );	//frame_num
+		H2EmitUE( fun, 0 ); // idr_pic_id
+			//pic_order_cnt_type => 0
+			H2EmitU( fun, slice, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)  (TODO: REVISIT)?
+
+		//ref_pic_list_reordering() -> Nothing
+		//dec_ref_pic_marking(()
+			H2EmitU( fun, 0, 1 ); // no_output_of_prior_pics_flag = 0
+			H2EmitU( fun, 0, 1 ); // long_term_reference_flag = 0
+		H2EmitSE( fun, 0 ); // slice_qp_delta 
+
+		int k;
+		for( k = 0; k < 1; k++ )
+		{
+			//TODO: SEE: ff_h264_decode_mb_cavlc
+
+			//XXX XXX BIG WARNING: 
+			//  We are actually violating H264 here, since we 
+			//  don't fill out any more than the first MB of a given slice.
+
+			// this is a "macroblock_layer"
+			//Send an I_PCM macroblock, lossless.
+			H2EmitUE( fun, 25 ); //I_PCM=25 (mb_type)
+			H2EmitFlush( fun );
+			
+			fun->datacb( fun->opaque, H2mb_dark, sizeof( H2mb_dark ) );
+		}
+		H2EmitU( fun, 1, 1 ); // Stop bit from rbsp_trailing_bits()
+		H2EmitFlush( fun );
+	}
+}
+
+
 void H264FUNPREFIX H264FunAddMB( H264Funzie * fun, int x, int y, uint8_t * data, H264FunPayload pl )
 {
 	int mbid = (x+y*fun->mbw);
 	H264FunzieUpdate * update = &fun->frameupdates[mbid];
-
 	if( update )
 	{
 		FreeFunzieUpdate( update );
@@ -397,3 +474,21 @@ int H264FUNPREFIX H264FunEmitFrame( H264Funzie * fun )
 
 	fun->datacb( fun->opaque, 0, -2 );
 }
+
+void H264FUNPREFIX H264FunClose( H264Funzie * funzie )
+{
+	int i;
+	int ct = funzie->mbh * funzie->mbw;
+	for( i = 0; i < ct; i++ )
+	{
+		FreeFunzieUpdate( &funzie->frameupdates[i] );
+	}
+	free( funzie->frameupdates );
+}
+
+const uint8_t h264fun_mp4header[48] = {
+	0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6F, 0x6D, 0x00, 0x00, 0x02, 0x00,
+	0x69, 0x73, 0x6F, 0x6D, 0x69, 0x73, 0x6F, 0x32, 0x61, 0x76, 0x63, 0x31, 0x6D, 0x70, 0x34, 0x31,
+	0x00, 0x00, 0x00, 0x08, 0x66, 0x72, 0x65, 0x65, 0x00, 0x17, 0x58, 0x89, 0x6D, 0x64, 0x61, 0x74 };
+
+

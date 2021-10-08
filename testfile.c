@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "os_generic.h"
 
 #define _H264FUN_H_IMPL
 #include "h264fun.h"
@@ -30,13 +31,22 @@ void DataCallback( void * opaque, uint8_t * data, int bytes )
 
 int main()
 {
+	int r;
 	H264Funzie funzie;
 	FILE * f = fopen( "testfile.h264", "wb" );
-	int r = H264FunInit( &funzie, 256, 256, 16, DataCallback, f );
-	if( r )
+//	fwrite( h264fun_mp4header, sizeof( h264fun_mp4header ), 1, f );
+
 	{
-		fprintf( stderr, "Error: H264FunInit returned %d\n", r );
-		return -1;
+		//const H264ConfigParam params[] = { { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 10000 }, { H2FUN_TERMINATOR, 0 } };
+		//r = H264FunInit( &funzie, 256, 256, 1, DataCallback, f, params );
+		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 0 }, { H2FUN_TERMINATOR, 0 } };
+		r = H264FunInit( &funzie, 256, 256, 1, DataCallback, f, params );
+
+		if( r )
+		{
+			fprintf( stderr, "Error: H264FunInit returned %d\n", r );
+			return -1;
+		}
 	}
 
 	int frame;
@@ -49,7 +59,7 @@ int main()
 			int i;
 			for( i = 0; i < 256; i++ )
 			{
-				memset( buffer, 0xaa, 256 );
+				memset( buffer, (i&1)*255, 256 );
 			}
 			H264FunAddMB( &funzie, rand()%(funzie.w/16), rand()%(funzie.h/16), buffer, H264FUN_PAYLOAD_LUMA_ONLY );
 		}
@@ -58,7 +68,9 @@ int main()
 
 
 	fclose( funzie.opaque );
+	H264FunClose( &funzie );
 	return 0;
 }
+
 
 
