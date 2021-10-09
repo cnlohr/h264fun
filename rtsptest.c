@@ -64,7 +64,7 @@ void DataCallback( void * opaque, uint8_t * data, int bytes )
 			conn->tx_buffer[4] = 0x80; // RTPHeader
 			conn->tx_buffer[5] = 0x60; // Dynamic
 			*((uint16_t*)(&conn->tx_buffer[6])) = htons( conn->seqid++ ); //Seq
-			*((uint32_t*)(&conn->tx_buffer[8])) = htonl( conn->seqid*1000 );
+			*((uint32_t*)(&conn->tx_buffer[8])) = htonl( OGGetAbsoluteTime()*90000 ); //Timestamp
 			*((uint32_t*)(&conn->tx_buffer[12])) = htonl( 0x3188a09b );
 
 			printf( "Sending %d to %d\n", conn->tx_buffer_place, sock );
@@ -112,7 +112,7 @@ void * GThread( void * v )
 
 	struct timeval timeoutrx;
 	timeoutrx.tv_sec = 0;
-	timeoutrx.tv_usec = 6000;
+	timeoutrx.tv_usec = 1000;
     if( setsockopt( sock, SOL_SOCKET, SO_RCVTIMEO, &timeoutrx, sizeof timeoutrx ) < 0 )
 	{
         fprintf( stderr, "Error, couldn't set timeout on rx socket.\n" );
@@ -201,7 +201,7 @@ void * GThread( void * v )
 				else if( strncmp( rx_cmd_buffer, "SETUP", 5 ) == 0 )
 				{
 					puts( uri + strlen( uri ) + 1 );
-					int n = sprintf( sendbuff, "RTSP/1.0 200 OK\r\nCSeq: %d\r\nSession: %d\r\nTransport: RTP/AVP/TCP;interleaved=0-1;mode=\"PLAY\"\r\n\r\n", cseq, conn->slotid );
+					int n = sprintf( sendbuff, "RTSP/1.0 200 OK\r\nCSeq: %d\r\nSession: %d\r\nTransport: RTP/AVP/TCP;interleaved=0-1;ssrc=000001F6\r\nx-Dynamic-Rate: 1\r\nx-Transport-Options: late-tolerance=1.400000\r\n\r\n", cseq, conn->slotid );
 					send( sock, sendbuff, n, MSG_NOSIGNAL );
 /* Example:
 
@@ -217,6 +217,20 @@ Transport: RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=FB269F08;mode="PLAY"
 Server: GStreamer RTSP server
 Session: ByjhuWDUZKcbKpqs;timeout=60
 Date: Sat, 22 May 2021 02:10:58 GMT
+
+or
+
+RTSP/1.0 200 OK
+CSeq: 4
+Date: Sat, Oct 09 2021 09:14:11 GMT
+Server: VRCDN Media Server 1.0.3(built on Jul 22 2021 18:35:23)
+Session: 4fJ65ofdMEaw
+Transport: RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=000001F6
+x-Dynamic-Rate: 1
+x-Transport-Options: late-tolerance=1.400000
+
+
+
 */
 
 
@@ -224,13 +238,12 @@ Date: Sat, 22 May 2021 02:10:58 GMT
 				}
 				else if( strncmp( rx_cmd_buffer, "DESCRIBE", 8 ) == 0 )
 				{
-					const char * stream_description = "\
+					const char * stream_description = stream_description = "\
 o=- 16504144009441403338 16504144009441403338 IN IP4 cnlohr-1520\n\
 s=Unnamed\n\
 i=N/A\n\
 c=IN IP4 0.0.0.0\n\
 t=0 0\n\
-a=recvonly\n\
 a=type:broadcast\n\
 m=video 0 RTP/AVP 96\n\
 b=RR:0\n\
@@ -249,7 +262,7 @@ Content-Type: application/sdp\r\n\
 Content-Length: %d\r\n\r\n%s", cseq, uri, (int)strlen( stream_description ), stream_description );
 					send( sock, sendbuff, n, MSG_NOSIGNAL );
 				}
-/* Example valid stream:
+/* Example valid stream: (webcam)
 v=0
 o=- 13456116403499583314 1 IN IP4 192.168.1.51
 s=Session streamed with GStreamer
@@ -271,7 +284,7 @@ a=control:rtsp://ipvmdemo.dyndns.org:5541/onvif-media/media.amp/stream=0?profile
 a=framerate:15.000000
 a=transform:1.000000,0.000000,0.000000;0.000000,1.000000,0.000000;0.000000,0.000000,1.000000
 
--or-
+-or- from cvlc
 o=- 16504144009441403338 16504144009441403338 IN IP4 cnlohr-1520
 s=Unnamed
 i=N/A
@@ -288,6 +301,25 @@ a=rtpmap:96 H264/90000
 a=fmtp:96 packetization-mode=1;profile-level-id=420029;sprop-parameter-sets=Z0IAKY3gQAgmAovAAAD6AAAdTAJIUL4=,aM46gA==;
 a=control:rtsp://127.0.0.1:8554/trackID=0
 
+-or- from VRCDN
+v=0
+o=- 0 0 IN IP4 0.0.0.0
+s=Streamed by VRCDN Media Server 1.0.3(built on Jul 22 2021 18:35:17)
+c=IN IP4 0.0.0.0
+t=0 0
+a=range:npt=now-
+a=control:*
+m=video 0 RTP/AVP 96
+a=rtpmap:96 H264/90000
+a=fmtp:96 packetization-mode=1; profile-level-id=640028; sprop-parameter-sets=Z2QAKKwspQHgCJ+XAWoEBAqAAAH0AAB1MHAAAB6EgAAPQkN3lwU=,aOuPLA==
+a=control:trackID=0
+a=framesize:96 1920-1080
+a=cliprect:0,0,1080,1920
+a=framerate:30.00
+m=audio 0 RTP/AVP 98
+a=rtpmap:98 mpeg4-generic/44100/2
+a=fmtp:98 streamtype=5;profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1210
+a=control:trackID=1
 
 */
 
@@ -305,7 +337,8 @@ a=control:rtsp://127.0.0.1:8554/trackID=0
 				conn->seqid = 0;
 
 				//{ H2FUN_TIME_ENABLE, 0 },
-				const H264ConfigParam params[] = { { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 15000 }, { H2FUN_TERMINATOR, 0 } };
+				//const H264ConfigParam params[] = { { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 15000 }, { H2FUN_TERMINATOR, 0 } };
+				const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 0 }, { H2FUN_TERMINATOR, 0 } };
 				r = H264FunInit( &funzie, 256, 256, 1, DataCallback, conn, params );
 				if( r )
 				{
@@ -330,7 +363,7 @@ a=control:rtsp://127.0.0.1:8554/trackID=0
 			{
 				// emitting
 				int bk;
-				for( bk = 0; bk < 10; bk++ )
+				for( bk = 0; bk < 100; bk++ )
 				{
 					uint8_t * buffer = malloc( 256 );
 					int i;

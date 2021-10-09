@@ -297,6 +297,7 @@ int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264F
 void H264FUNPREFIX H264FakeIFrame( H264Funzie * fun )
 {
 	int slice = 0;
+	fun->frameno++;
 	for( slice = 0; slice < fun->slices; slice++ )
 	{
 		//slice_layer_without_partitioning_rbsp()
