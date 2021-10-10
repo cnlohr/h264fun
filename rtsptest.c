@@ -34,6 +34,7 @@ struct connection
 	int playing;
 	int connected;
 	int seqid;
+	int rxmode;
 	og_thread_t thread;
 };
 
@@ -65,9 +66,9 @@ void DataCallback( void * opaque, uint8_t * data, int bytes )
 			conn->tx_buffer[5] = 0x60; // Dynamic
 			*((uint16_t*)(&conn->tx_buffer[6])) = htons( conn->seqid++ ); //Seq
 			*((uint32_t*)(&conn->tx_buffer[8])) = htonl( OGGetAbsoluteTime()*90000 ); //Timestamp
-			*((uint32_t*)(&conn->tx_buffer[12])) = htonl( 0x3188a09b );
+			*((uint32_t*)(&conn->tx_buffer[12])) = htonl( 0 ); // ????
 
-			printf( "Sending %d to %d\n", conn->tx_buffer_place, sock );
+//			printf( "Sending %d to %d\n", conn->tx_buffer_place, sock );
 			if( send( sock, conn->tx_buffer, conn->tx_buffer_place, MSG_NOSIGNAL ) < 0 ) conn->fault = 1;
 
 			static FILE * fdump;
@@ -112,7 +113,7 @@ void * GThread( void * v )
 
 	struct timeval timeoutrx;
 	timeoutrx.tv_sec = 0;
-	timeoutrx.tv_usec = 1000;
+	timeoutrx.tv_usec = 10000; //10ms
     if( setsockopt( sock, SOL_SOCKET, SO_RCVTIMEO, &timeoutrx, sizeof timeoutrx ) < 0 )
 	{
         fprintf( stderr, "Error, couldn't set timeout on rx socket.\n" );
@@ -146,17 +147,63 @@ void * GThread( void * v )
 		{
 			timeout = 0;
 			int torecord = r + rx_cmd_place;
-			if( torecord >= sizeof( rx_cmd_buffer ) )
+			if( torecord + rx_cmd_place >= sizeof( rx_cmd_buffer ) )
 			{
 				fprintf( stderr, "Error: overflow from client (%d)\n", torecord );
-				goto closeconn;
+				//goto closeconn;
+				rx_cmd_place = 0;
+				continue;
 			}
 			memcpy( rx_cmd_buffer + rx_cmd_place, buf, torecord );
 			rx_cmd_place += torecord;
 			rx_cmd_buffer[rx_cmd_place] = 0;
 			printf( "rx_cmd_place = %d\n", rx_cmd_place );
-			if( rx_cmd_place > 4 && strncmp( rx_cmd_buffer + rx_cmd_place - 4, "\r\n\r\n", 4 ) == 0 )
+
+			if( conn->rxmode == 1 )
 			{
+
+				int i;
+				for( i = 0; i < torecord; i++ )
+				{
+					int c = rx_cmd_buffer[i];
+					printf( "%02x '%c' ", c, (c>32 && c<128)?c:' ' );
+				}
+				printf( "\n" );
+
+				if( rx_cmd_buffer[0] == '0' )
+					conn->rxmode = 0;
+				else if( rx_cmd_buffer[0] == '$' ) //0x24 packet.
+				{
+					//RTP packet.
+					int len = (rx_cmd_buffer[2]<<8) | rx_cmd_buffer[3];
+					int remain = rx_cmd_place - (len+4);
+					if( remain >= 0 )
+					{
+						int i;
+						for( i = 0; i < torecord; i++ )
+						{
+							int c = rx_cmd_buffer[i];
+							printf( "%02x '%c' ", c, (c>32 && c<128)?c:' ' );
+						}
+						printf( "\n" );
+
+						
+						if( remain > 0 )
+						{
+							int k, l = len+4;;
+							for( k = 0; k < len+4; k++, l++ )
+							{
+								rx_cmd_buffer[k] = rx_cmd_buffer[l];
+							}
+						}
+						rx_cmd_place = remain;
+					}
+				}
+				else conn->rxmode = 0;
+			}
+			if( conn->rxmode == 0 && rx_cmd_place > 4 && strncmp( rx_cmd_buffer + rx_cmd_place - 4, "\r\n\r\n", 4 ) == 0 )
+			{
+				puts( rx_cmd_buffer );
 				char sendbuff[1024];
 				char * uri = 0;
 				int cseq = 0;
@@ -197,6 +244,10 @@ void * GThread( void * v )
 					int n = sprintf( sendbuff, "RTSP/1.0 200 OK\r\nCSeq: %d\r\nSession: %d\r\nRTP-Info: url=%s\r\n\r\n", cseq, sessid, uri );
 					send( sock, sendbuff, n, MSG_NOSIGNAL );
 					conn->playing = 1;
+					conn->rxmode = 1;
+
+					//TRICKY: When PLAYing a stream, we have to delay.  Some sort of bug with Live555 + VLC + VRChat.
+					sleep(1);
 				}
 				else if( strncmp( rx_cmd_buffer, "SETUP", 5 ) == 0 )
 				{
@@ -239,7 +290,8 @@ x-Transport-Options: late-tolerance=1.400000
 				else if( strncmp( rx_cmd_buffer, "DESCRIBE", 8 ) == 0 )
 				{
 					const char * stream_description = stream_description = "\
-o=- 16504144009441403338 16504144009441403338 IN IP4 cnlohr-1520\n\
+v=0\r\n\
+o=- 0 0 IN IP4 0.0.0.0\r\n\
 s=Unnamed\n\
 i=N/A\n\
 c=IN IP4 0.0.0.0\n\
@@ -251,6 +303,9 @@ a=rtpmap:96 H264/90000\n\
 a=fmtp:96 packetization-mode=2;profile-level-id=420029;sprop-parameter-sets=Z0IAKY3gQAgmAovAAAD6AAAdTAJIUL4=,aM46gA==;\n\
 a=control:rtsp://127.0.0.1:8554/trackID=0\n\
 ";
+
+//o=- 16504144009441403338 16504144009441403338 IN IP4 cnlohr-1520\n\
+
 
 
 
@@ -337,9 +392,9 @@ a=control:trackID=1
 				conn->seqid = 0;
 
 				//{ H2FUN_TIME_ENABLE, 0 },
-				//const H264ConfigParam params[] = { { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 15000 }, { H2FUN_TERMINATOR, 0 } };
-				const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 0 }, { H2FUN_TERMINATOR, 0 } };
-				r = H264FunInit( &funzie, 256, 256, 1, DataCallback, conn, params );
+				const H264ConfigParam params[] = { { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 60000 }, { H2FUN_TERMINATOR, 0 } };
+				//const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 0 }, { H2FUN_TERMINATOR, 0 } };
+				r = H264FunInit( &funzie, 512, 512, 1, DataCallback, conn, params );
 				if( r )
 				{
 					fprintf( stderr, "Error: H264FunInit returned %d\n", r );
@@ -359,33 +414,98 @@ a=control:trackID=1
 			static int frameno;
 			frameno++;
 
-			if( frameno % 10 )
 			{
 				// emitting
 				int bk;
-				for( bk = 0; bk < 100; bk++ )
+				for( bk = 0; bk < 10; bk++ )
 				{
+					int mbx = rand()%(funzie.w/16);
+					int mby = rand()%(funzie.h/16);
 					uint8_t * buffer = malloc( 256 );
-					int i;
-					for( i = 0; i < 256; i++ )
+					if( bk == 0 )
 					{
-						memset( buffer, (i&1)*255, 256 );
+						memset( buffer, (rand()%100)+1, 256 );
+						H264FunAddMB( &funzie, rand()%(funzie.w/16), rand()%(funzie.h/16), buffer, H264FUN_PAYLOAD_LUMA_ONLY );
 					}
-					H264FunAddMB( &funzie, rand()%(funzie.w/16), rand()%(funzie.h/16), buffer, H264FUN_PAYLOAD_LUMA_ONLY );
+					else
+					{
+						const uint16_t font[] = //3 px wide, buffer to 4; 5 px high, buffer to 8.
+						{
+							0b111101101101111,
+							0b010010010010010,
+							0b111001111100111,
+							0b111001011001111,
+							0b001101111001001,
+							0b111100111001111,
+							0b111100111101111,
+							0b111001001010010,
+							0b111101111101111,
+							0b111101111001001,
+							0b000000000000010, //.
+							0b000010000010000, //:
+							0b000000000000000, // (space)
+						};
+						memset( buffer, 1, 256 );
+						{
+							struct timeval tv;
+							time_t t;
+							struct tm *info;
+
+							gettimeofday(&tv, NULL);
+							t = tv.tv_sec;
+							info = localtime(&t);
+							char towrite[100];
+							int cx, cy;
+							int writepos = 0;
+							for( cy = 0; cy < 2; cy++ )
+							for( cx = 0; cx < 4; cx++ )
+							{
+								uint16_t pxls = 0;
+								if( cy == 0 )
+								{
+									if(cx < 2)
+										pxls = font[(info->tm_min/((cx==0)?10:1))%10];
+									else
+										pxls = font[(info->tm_sec/((cx==2)?10:1))%10];
+								}
+								else if( cy == 1 )
+								{
+									int tens = 1;
+									int tc = cx;
+									while( tc != 3) { tc++; tens*=10; }
+									pxls = font[(tv.tv_usec/100/tens)%10];
+								}
+								int px, py;
+								for( py = 0; py < 8; py++ )
+								for( px = 0; px < 4; px++ )
+								{
+									int color = 1;
+									if( px < 3 ) color = ((pxls>>(14-(py*3+px)))&1)?200:001;
+									int pos = (py+cy*8)*16+px+cx*4;
+									buffer[pos] = color;
+									printf( "%d %d\n", pos, color );
+								}
+							}
+							mbx = 0;
+							mby = 0;
+						}
+							printf( "** %d\n", buffer[1] );
+					//	int ik = 0;
+					//	for( ik = 0; ik < 256; ik++ ) printf( "%d ", buffer[ik] );
+					//	printf( "\n" );
+
+						H264FunAddMB( &funzie, mbx,  mby, buffer, H264FUN_PAYLOAD_LUMA_ONLY );
+					}
 				}
 				H264FunEmitFrame( &funzie );
 			}
-			else
-			{
-				H264FakeIFrame(&funzie);
-			}
 			timeout = 0;
 		}
-		printf( "...\n" ); fflush( stdout );
+	//	printf( "...\n" ); fflush( stdout );
 		timeout++;
 		if( timeout > 6000 )
 		{
-			fprintf( stderr, "Timeout\n" );
+		//	fprintf( stderr, "Timeout\n" );
 			goto closeconn;
 		}
 	}
@@ -407,6 +527,8 @@ closeconn:
 	conn->connected = 0;
 	return 0;
 }
+
+
 
 int main()
 {

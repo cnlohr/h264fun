@@ -97,7 +97,6 @@ static void H2EmitUE( H264Funzie * fun, int64_t data )
 
 static void H2EmitNAL( H264Funzie * fun )
 {
-	printf( "NAL\n" );
 	H2EmitFlush( fun );
 	fun->datacb( fun->opaque, 0, -1 );
 }
