@@ -25,7 +25,7 @@ testfile.mp4 : testfile.h264
 	$(FFMPEG) -i testfile.h264 -vcodec copy -fflags +genpts -an testfile.mp4
 
 rtsptest : rtsptest.c
-	gcc -g -o $@ $^ -lpthread
+	gcc -g -o $@ $^ -lpthread -Os -s
 
 128x128.h264 : 128x128.png
 	$(FFMPEG) -loop 1 -i $^ -c:v h264 -t 1 -pix_fmt yuv420p $@

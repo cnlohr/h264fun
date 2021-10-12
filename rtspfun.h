@@ -1,3 +1,7 @@
+/* 
+  Minimal RTSP server, allowing multi connections, and custom, per-connection RTSP streams.
+*/
+
 #ifndef _RTSPFUN_H
 #define _RTSPFUN_H
 
@@ -60,7 +64,7 @@ struct RTSPSystem
 // Only returns if fault or terminate.
 // port RTSP_DEFAULT_PORT is default for RTSP.
 int RTSPFunStart( struct RTSPSystem * system, int port, RTSPControl ctrl, int max_connections );
-void RTSPSend( void * opaque, uint8_t * buffer, int len );
+void RTSPSend( void * connection, uint8_t * buffer, int len );
 
 void RTSPFunStop( struct RTSPSystem * system );
 
