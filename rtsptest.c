@@ -1,14 +1,5 @@
 #include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
 #include <string.h>
-#include <netdb.h>
-#include <sys/types.h> 
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <string.h>
-#include <errno.h>
 
 #define _H264FUN_H_IMPL
 #include "h264fun.h"
@@ -16,7 +7,12 @@
 #define _RTSPFUN_H_IMPLEMENTATION
 #include "rtspfun.h"
 
+
+
 #include "os_generic.h"
+
+
+int akey;
 
 struct OpaqueDemo
 {
@@ -61,17 +57,22 @@ int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage e
 		return 0;
 
 	case RTSP_TICK:
+	{
+		const int nr_to_send_per_frame = 10;
 		// emitting
-		for( bk = 0; bk < 10; bk++ )
+		for( bk = 0; bk < nr_to_send_per_frame; bk++ )
 		{
 			int mbx = rand()%(demo->funzie.w/16);
 			int mby = rand()%(demo->funzie.h/16);
-			int basecolor = rand()%253 + 1;
+			int basecolor = rand()%150 + 1;
 			uint8_t * buffer = malloc( 256 );
-			if( bk == 0 )
+
+			if( akey ) basecolor = 254;
+
+			if( bk == nr_to_send_per_frame-1 )
 			{
 				mbx = mby = 0;
-				basecolor = 0;
+				basecolor = akey?1:254;
 			}
 
 			const uint16_t font[] = //3 px wide, buffer to 4; 5 px high, buffer to 8.
@@ -137,6 +138,7 @@ int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage e
 		H264FunEmitFrame( &demo->funzie );
 		demo->frameno++;
 		return 0;
+	}
 	case RTSP_PAUSE:
 		printf( "Play\n" );
 		return 0;
@@ -150,9 +152,19 @@ int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage e
 	}
 }
 
+void * InputThread( void * v )
+{
+	while( 1 )
+	{
+		int c = getchar();
+		if( c == 10 )
+			akey = !akey;
+	}
+}
 
 int main()
 {
+	OGCreateThread( InputThread, 0 );
 	struct RTSPSystem system;
 	if( StartRTSPFun( &system, RTSP_DEFAULT_PORT, RTSPControlCallback, DEFAULT_MAX_CONNS ) )
 	{
