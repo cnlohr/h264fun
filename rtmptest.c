@@ -25,10 +25,10 @@ struct OpaqueDemo
 };
 
 
-int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage event )
+int RTMPControlCallback( void * connection, void * opaque )
 {
 	int r, bk;
-	struct OpaqueDemo * demo = (struct OpaqueDemo*)conn->opaque;
+	struct OpaqueDemo * demo = (struct OpaqueDemo*)opaque;
 	switch( event )
 	{
 	case RTSP_INIT:
@@ -44,7 +44,7 @@ int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage e
 		//{ H2FUN_TIME_ENABLE, 0 },
 		//const H264ConfigParam params[] = { { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 60000 }, { H2FUN_TERMINATOR, 0 } };
 		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 0 }, { H2FUN_TERMINATOR, 0 } }; // Disable timing.  (Makes it so RTSP determines timing)
-		r = H264FunInit( &demo->funzie, 512, 512, 1, RTSPSend, conn, params );
+		r = H264FunInit( &demo->funzie, 512, 512, 1, RTMPSend, conn, params );
 		if( !r )
 			demo->frameno = 0;
 		return r;
@@ -153,10 +153,9 @@ int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage e
 
 int main()
 {
-	struct RTSPSystem system;
-	if( StartRTSPFun( &system, RTSP_DEFAULT_PORT, RTSPControlCallback, DEFAULT_MAX_CONNS ) )
+	if( StartRTMPFun( RTMPControlCallback, 0, RTMP_DEFAULT_PORT ) )
 	{
-		fprintf( stderr, "Error: StartRTSPFun failed.\n" );
+		fprintf( stderr, "Error: StartRTMPFun failed.\n" );
 	}
 	return 0;
 }

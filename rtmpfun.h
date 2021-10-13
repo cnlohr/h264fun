@@ -23,7 +23,7 @@ typedef int (*RTMPCallback)( void * connection, void * opaque );
 // Returns when callback returns nonzero.
 
 int InitRTMPConnection( RTMPCallback cb, void * opaque, int port );
-int RTSPSend( void * connection, uint8_t * buffer, int len );
+int RTMPSend( void * connection, uint8_t * buffer, int len );
 
 
 #ifdef _RTSPFUN_H_IMPLEMENTATION
