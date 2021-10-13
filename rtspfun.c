@@ -182,7 +182,7 @@ void * GThread( void * v )
 			}
 			if( conn->rxmode == 0 && rx_cmd_place > 4 && strncmp( rx_cmd_buffer + rx_cmd_place - 4, "\r\n\r\n", 4 ) == 0 )
 			{
-				//puts( rx_cmd_buffer );
+				puts( rx_cmd_buffer );
 				char sendbuff[1024];
 				char * uri = 0;
 				int cseq = 0;
@@ -207,10 +207,9 @@ void * GThread( void * v )
 				//puts( rx_cmd_buffer );
 				//printf( "URI: \"%s\"\n", uri );
 
-				if( strncmp( rx_cmd_buffer, "OPTIONS", 7 ) == 0 )
+				if( strncmp( rx_cmd_buffer, "GET", 3 ) == 0 )
 				{
-					int n = sprintf( sendbuff, "RTSP/1.0 200 OK\r\nCSeq: %d\r\nPublic: OPTIONS, DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE\r\n\r\n", cseq );
-					send( sock, sendbuff, n, MSG_NOSIGNAL );
+					close( sock );
 				}
 				else if( strncmp( rx_cmd_buffer, "PAUSE", 5 ) == 0 )
 				{

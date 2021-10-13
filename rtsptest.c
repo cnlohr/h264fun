@@ -58,7 +58,7 @@ int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage e
 
 	case RTSP_TICK:
 	{
-		const int nr_to_send_per_frame = 10;
+		const int nr_to_send_per_frame = 2;
 		// emitting
 		for( bk = 0; bk < nr_to_send_per_frame; bk++ )
 		{
