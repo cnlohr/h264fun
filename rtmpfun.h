@@ -1,6 +1,8 @@
 /*
 	RTMP Transmission Client - i.e. this connects to a remote host and
 	sends it an RTMP stream.
+
+    RTMP IS NOT YET FUNCTIONAL
 */
 
 
