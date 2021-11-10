@@ -1,4 +1,4 @@
-all : testbase testbase.h264 128x128.h264 testdec testbase.mp4 testfile.mp4 rtsptest
+all : testbase testbase.h264 testdec testbase.mp4 testfile.mp4 rtsptest rtmptest
 
 #~/git/h264Bitstream/h264_analyze testbase.h264  | less
 #ffmpeg -i testbase.h264 -vcodec copy -vbsf h265_mp4toannexb -an of.h264
@@ -27,12 +27,15 @@ testfile.mp4 : testfile.h264
 rtsptest : rtsptest.c
 	gcc -g -o $@ $^ -lpthread -Os -s
 
-128x128.h264 : 128x128.png
-	$(FFMPEG) -loop 1 -i $^ -c:v h264 -t 1 -pix_fmt yuv420p $@
+rtmptest : rtmptest.c rtmpfun.c
+	gcc -g -o $@ rtmptest.c -lpthread -O0 -g
+
+#128x128.h264 : 128x128.png
+#	$(FFMPEG) -loop 1 -i $^ -c:v h264 -t 1 -pix_fmt yuv420p $@
 
 testdec : testdec.c
 	$(CC) -o $@ $^
 
 clean :
-	rm -rf testbase testbase.h264 128x128.h264 testdec testbase.mp4 testfile testfile.h264 testfile.mp4 rtsptest
+	rm -rf testbase testbase.h264 testdec testbase.mp4 testfile testfile.h264 testfile.mp4 rtsptest rtmptest
 

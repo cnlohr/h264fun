@@ -20,54 +20,51 @@
 
 #include "os_generic.h"
 
-struct OpaqueDemo
+int main()
 {
-	int frameno;
-	H264Funzie funzie;
-};
-
-
-int RTMPControlCallback( void * connection, void * opaque )
-{
-	int r, bk;
-	struct OpaqueDemo * demo = (struct OpaqueDemo*)opaque;
-	switch( event )
+	int r;
+	struct RTMPSession rtmp;
 	{
-	case RTSP_INIT:
+		FILE * f = fopen( ".streamkey", "rb" );
+		if( !f )
+		{
+			fprintf( stderr, "Error: could not open .streamkey\n" );
+			return -5;
+		}
+		char streamkey[256] = { 0 };
+		if( fscanf( f, "%255s\n", streamkey ) != 1 )
+		{
+			fprintf( stderr, "Error: could not parse .streamkey\n" ); 
+			return -6;
+		}
+		fclose( f );
+		r = InitRTMPConnection( &rtmp, 0, "rtmp://ingest.vrcdn.live/live", streamkey );
+		memset( streamkey, 0, sizeof( streamkey ) );
+		if( r )
+		{
+			return r;
+		}
+	}
 
-		printf( "Setup H264 Stream\n" );
-
-		conn->tx_buffer_place = 16;
-		conn->seqid = 0;
-		if( !conn->opaque )
-			conn->opaque = malloc( sizeof( struct OpaqueDemo ) );
-		demo = conn->opaque;
-
-		//{ H2FUN_TIME_ENABLE, 0 },
-		//const H264ConfigParam params[] = { { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 60000 }, { H2FUN_TERMINATOR, 0 } };
+	printf( "RTMP Server connected.\n" );
+	H264Funzie funzie;
+	{
 		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 0 }, { H2FUN_TERMINATOR, 0 } }; // Disable timing.  (Makes it so RTSP determines timing)
-		r = H264FunInit( &demo->funzie, 512, 512, 1, RTMPSend, conn, params );
-		if( !r )
-			demo->frameno = 0;
-		return r;
+		r = H264FunInit( &funzie, 512, 512, 1, (H264FunData)RTMPSend, &rtmp, params );
+		if( r )
+		{
+			fprintf( stderr, "Closing due to H.264 fun error.\n" );
+			return r;
+		}
+	}
 
-	case RTSP_DEINIT:
-		printf( "Stop H264 Stream\n" );
-		H264FunClose( &demo->funzie );
-		return 0;
-
-	case RTSP_PLAY:
-		demo->frameno = 0;
-		conn->rxtimedelay = 20000; // <50 Hz.
-		OGUSleep( 50000 );
-		return 0;
-
-	case RTSP_TICK:
-		// emitting
+	while( 1 )
+	{
+		int bk;
 		for( bk = 0; bk < 10; bk++ )
 		{
-			int mbx = rand()%(demo->funzie.w/16);
-			int mby = rand()%(demo->funzie.h/16);
+			int mbx = rand()%(funzie.w/16);
+			int mby = rand()%(funzie.h/16);
 			int basecolor = rand()%253 + 1;
 			uint8_t * buffer = malloc( 256 );
 			if( bk == 0 )
@@ -134,31 +131,13 @@ int RTMPControlCallback( void * connection, void * opaque )
 				}
 			}
 
-			H264FunAddMB( &demo->funzie, mbx,  mby, buffer, H264FUN_PAYLOAD_LUMA_ONLY );
+			H264FunAddMB( &funzie, mbx,  mby, buffer, H264FUN_PAYLOAD_LUMA_ONLY );
 		}
-		H264FunEmitFrame( &demo->funzie );
-		demo->frameno++;
-		return 0;
-	case RTSP_PAUSE:
-		printf( "Play\n" );
-		return 0;
-	case RTSP_TERMINATE:
-		if( demo )
-		{
-			free( demo );
-			conn->opaque = 0;
-		}
-		return 0;
-	}
-}
+		H264FunEmitFrame( &funzie );
 
-
-int main()
-{
-	if( StartRTMPFun( RTMPControlCallback, 0, RTMP_DEFAULT_PORT ) )
-	{
-		fprintf( stderr, "Error: StartRTMPFun failed.\n" );
+		OGUSleep( 20000 );
 	}
+
 	return 0;
 }
 

@@ -14,18 +14,22 @@
 #include <stdint.h>
 
 #define RTMP_DEFAULT_PORT 1935
+#define RTMP_SEND_BUFFER 131072
 
-// about 300 I_PCM macroblocks.
-#define TX_MTU 131072
+struct RTMPSession
+{
+	int sock;
+	void * opaque;
+	uint8_t * nalbuffer;
+	int nallen;
+	int tmsgid;
+	int remote_chunk_size;
+};
 
-
-typedef int (*RTMPCallback)( void * connection, void * opaque ); 
-
-// Function does not return, but, locks.
-// Returns when callback returns nonzero.
-
-int InitRTMPConnection( RTMPCallback cb, void * opaque, int port );
-int RTMPSend( void * connection, uint8_t * buffer, int len );
+// Function returns upon successful connection or failure.
+int InitRTMPConnection( struct RTMPSession * rt, void * opaque, const char * uri, const char * streamkey );
+void RTMPClose( struct RTMPSession * rt );
+int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len );
 
 
 #ifdef _RTSPFUN_H_IMPLEMENTATION
