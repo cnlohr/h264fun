@@ -409,7 +409,8 @@ int InitRTMPConnection( struct RTMPSession * rt, void * opaque, const char * uri
 		goto closeconn;
 	}
 	
-	OGUSleep(100000);
+	//XXX TODO: Here is a place we kinda need to wait for them to give us the green light.
+	OGUSleep(1000000);
 
 
 
