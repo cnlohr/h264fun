@@ -94,6 +94,9 @@ void H264FUNPREFIX H264FakeIFrame( H264Funzie * funzie );
 // Emit the frame.  Note: the return value will be 0 if successful, otherwise will fail with error code returned by H264FunData.
 int H264FUNPREFIX H264FunEmitFrame( H264Funzie * funzie );
 
+// Emit the frame, but as an IFrame
+int H264FUNPREFIX H264FunEmitIFrame( H264Funzie * funzie );
+
 void H264FUNPREFIX H264FunClose( H264Funzie * funzie );
 
 // Actually not useful, will need another way.  TODO: read phos's message about stream setting mp4's.

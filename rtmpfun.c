@@ -17,6 +17,9 @@ static int rtmpp_finish_header( uint8_t * buffer, int * place, int maxlen, int p
 	int pl = *place;
 	if( pl == maxlen ) return -1;
 	int plen = pl - post_header_place;
+	int hsize = ((buffer[post_header_place]&0xc0) == 0x40)?8:12;
+	plen -= hsize;
+	printf( "Updating buffer with: %d+... = %d\n", post_header_place, plen );
 	buffer[post_header_place+4] = plen>>16;
 	buffer[post_header_place+5] = plen>>8;
 	buffer[post_header_place+6] = plen>>0;
@@ -35,23 +38,45 @@ static int rtmpp_add_raw_uint32( uint8_t * buffer, int * place, int maxlen, uint
 	return 0;
 }
 
-static int rtmpp_add_raw_null( uint8_t * buffer, int * place, int maxlen )
+static int rtmpp_add_boolean( uint8_t * buffer, int * place, int maxlen, int truefalse )
 {
 	int pl = *place;
-	if( pl + 1 > maxlen ) { *place = maxlen; return -1; }
-	buffer[pl++] = 5;
+	if( pl + 2 > maxlen ) { *place = maxlen; return -1; }
+	buffer[pl++] = 1;
+	buffer[pl++] = truefalse;
 	*place = pl;
 	return 0;
 }
 
-static int rtmpp_add_header( uint8_t * buffer, int * place, int maxlen, int type_id )
+static int rtmpp_add_raw_null( uint8_t * buffer, int * place, int maxlen )
+{
+	int pl = *place;
+	if( pl + 1 > maxlen ) { *place = maxlen; return -1; }
+	buffer[pl++] = 0x05;
+	*place = pl;
+	return 0;
+}
+
+
+static int rtmpp_add_raw_array( uint8_t * buffer, int * place, int maxlen )
+{
+	int pl = *place;
+	if( pl + 1 > maxlen ) { *place = maxlen; return -1; }
+	buffer[pl++] = 0x08;
+	*place = pl;
+	return 0;
+}
+
+static int rtmpp_add_header( uint8_t * buffer, int * place, int maxlen, int pkthdr, int type_id, int stream_id )
 {
 	int pl = *place;
 	if( pl + 12 > maxlen ) { *place = maxlen; return -1; }
 	static const uint8_t bufferbase[] = { 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00 };
 	memcpy( buffer+pl, bufferbase, sizeof( bufferbase ) );
+	buffer[pl] = pkthdr;
 	buffer[pl+7] = type_id;
-	*place = pl + sizeof(bufferbase);
+	buffer[pl+8] = stream_id;
+	*place = pl + (((pkthdr&0xc0)==0x40)?8:12);
 	return 0;
 }
 
@@ -73,8 +98,16 @@ static int rtmpp_add_number( uint8_t * buffer, int * place, int maxlen, double d
 	int pl = *place;
 	if( pl + 9 > maxlen ) { *place = maxlen; return -1; }
 	buffer[pl++] = 0;
-	memcpy( buffer+pl, &d, 8 );
-	*place = pl + 8;
+	uint8_t * dbb = (uint8_t*)&d;
+	buffer[pl++] = dbb[7];
+	buffer[pl++] = dbb[6];
+	buffer[pl++] = dbb[5];
+	buffer[pl++] = dbb[4];
+	buffer[pl++] = dbb[3];
+	buffer[pl++] = dbb[2];
+	buffer[pl++] = dbb[1];
+	buffer[pl++] = dbb[0];
+	*place = pl;
 	return 0;
 }
 
@@ -260,22 +293,20 @@ int InitRTMPConnection( struct RTMPSession * rt, void * opaque, const char * uri
 
 	uint8_t cmd_buffer[1536];
 	int cmd_place = 0, header_place = 0;
-	rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x01 ); header_place = cmd_place; //Set Chunk Size
+	header_place = cmd_place; rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 2, 0x01, 0 ); //Set Chunk Size
 	rtmpp_add_raw_uint32( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 4096 );
 	rtmpp_finish_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), header_place );
 
-	rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x14 ); header_place = cmd_place; //AMF0 Command
+	header_place = cmd_place; rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 3, 0x14, 0 ); //AMF0 Command
 	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "connect" );
 	rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), rt->tmsgid++ );
 	rtmpp_add_object( cmd_buffer, &cmd_place, sizeof( cmd_buffer ) );
 	rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "app" );
-	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), app );
+	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), (app[0]=='/')?(app+1):app );
 	rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "type" );
 	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "nonprivate" );
 	rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "flashVer" );
 	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "FMLE/3.0 (compatible; FMSc/1.0)" );
-	rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "swfUrl" );
-	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), uri );
 	rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "swfUrl" );
 	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), uri );
 	rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "tcUrl" );
@@ -291,14 +322,16 @@ int InitRTMPConnection( struct RTMPSession * rt, void * opaque, const char * uri
 
 	if( send( rt->sock, cmd_buffer, cmd_place, MSG_NOSIGNAL ) != cmd_place )
 	{
-		fprintf( stderr, "Error setting chunk size.\n" );
+		fprintf( stderr, "Error connect.\n" );
 		goto closeconn;
 	}
+
+	OGUSleep(100000);
 
 	// From here, we basically just ignore everything the server tells us.
 
 	cmd_place = 0;
-	rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x14 ); header_place = cmd_place; //AMF0 Command
+	header_place = cmd_place; rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x43, 0x14, 0 ); //AMF0 Command
 	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "releaseStream" );
 	rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), rt->tmsgid++ );
 	rtmpp_add_raw_null( cmd_buffer, &cmd_place, sizeof( cmd_buffer ) );
@@ -313,29 +346,30 @@ int InitRTMPConnection( struct RTMPSession * rt, void * opaque, const char * uri
 
 	if( send( rt->sock, cmd_buffer, cmd_place, MSG_NOSIGNAL ) != cmd_place )
 	{
-		fprintf( stderr, "Error setting chunk size.\n" );
+		fprintf( stderr, "Error release stream.\n" );
 		goto closeconn;
 	}
 
-	rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x14 ); header_place = cmd_place; //AMF0 Command
+	OGUSleep(100000);
+
+	cmd_place = 0;
+	header_place = cmd_place; rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x43, 0x14, 0 ); //AMF0 Command
 	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "FCPublish" );
 	rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), rt->tmsgid++ );
 	rtmpp_add_raw_null( cmd_buffer, &cmd_place, sizeof( cmd_buffer ) );
 	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), streamkey );
 	rtmpp_finish_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), header_place );
 
-	rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x14 ); header_place = cmd_place; //AMF0 Command
+	header_place = cmd_place; rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x43, 0x14, 0 ); //AMF0 Command
 	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "createStream" );
 	rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), rt->tmsgid++ );
 	rtmpp_add_raw_null( cmd_buffer, &cmd_place, sizeof( cmd_buffer ) );
-	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), streamkey );
 	rtmpp_finish_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), header_place );
 
-	rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x14 ); header_place = cmd_place; //AMF0 Command
+	header_place = cmd_place; rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x03, 0x14, 0 ); //AMF0 Command
 	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "_checkbw" );
 	rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), rt->tmsgid++ );
 	rtmpp_add_raw_null( cmd_buffer, &cmd_place, sizeof( cmd_buffer ) );
-	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), streamkey );
 	rtmpp_finish_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), header_place );
 
 
@@ -347,16 +381,19 @@ int InitRTMPConnection( struct RTMPSession * rt, void * opaque, const char * uri
 
 	if( send( rt->sock, cmd_buffer, cmd_place, MSG_NOSIGNAL ) != cmd_place )
 	{
-		fprintf( stderr, "Error setting chunk size.\n" );
+		fprintf( stderr, "Error FCPublish.\n" );
 		goto closeconn;
 	}
 
-	rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x14 ); header_place = cmd_place; //AMF0 Command
+	OGUSleep(100000);
+
+	cmd_place = 0;
+	header_place = cmd_place; rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x04, 0x14, 1 ); //AMF0 Command
 	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "publish" );
 	rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), rt->tmsgid++ );
 	rtmpp_add_raw_null( cmd_buffer, &cmd_place, sizeof( cmd_buffer ) );
 	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), streamkey );
-	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), app );
+	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), (app[0]=='/')?(app+1):app );
 	rtmpp_finish_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), header_place );
 
 
@@ -368,11 +405,84 @@ int InitRTMPConnection( struct RTMPSession * rt, void * opaque, const char * uri
 
 	if( send( rt->sock, cmd_buffer, cmd_place, MSG_NOSIGNAL ) != cmd_place )
 	{
-		fprintf( stderr, "Error setting chunk size.\n" );
+		fprintf( stderr, "Error publish.\n" );
 		goto closeconn;
 	}
 	
-	rt->nalbuffer = malloc( RTMP_SEND_BUFFER + 13);
+	OGUSleep(100000);
+
+
+
+
+	cmd_place = 0;
+	header_place = cmd_place; rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x04, 0x12, 1 ); //AMF0 Command for metadata.
+	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "@setDataFrame" );
+	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "onMetaData" );
+	rtmpp_add_raw_array( cmd_buffer, &cmd_place, sizeof( cmd_buffer ) );
+	rtmpp_add_raw_uint32( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 20 ); //Array length 20.
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "duration" );
+		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "fileSize" );
+		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "width" );
+		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 192 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "height" );
+		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 108 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "videocodecid" );
+		rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "avc1" );//rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "avc1" );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "videodatarate" );
+		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 400 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "framerate" );
+		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 30 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "audiocodecid" );
+		rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "mp4a" );//rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "mp4a" );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "audiodatarate" );
+		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 160 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "audiosamplerate" );
+		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 44100 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "audiosamplesize" );
+		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 16 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "audiochannels" );
+		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 2 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "stereo" );
+		rtmpp_add_boolean( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 1 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "2.1" );
+		rtmpp_add_boolean( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "3.1" );
+		rtmpp_add_boolean( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "4.0" );
+		rtmpp_add_boolean( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "4.1" );
+		rtmpp_add_boolean( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "5.1" );
+		rtmpp_add_boolean( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "7.1" );
+		rtmpp_add_boolean( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0 );
+		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "encoder" );
+		rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "obs-output module (libobs version 25.0.3+dfsg1-2)" );
+	rtmpp_add_end_object_marker( cmd_buffer, &cmd_place, sizeof( cmd_buffer ) );
+	rtmpp_finish_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), header_place );
+
+
+	if( cmd_place == sizeof( cmd_buffer ) )
+	{
+		fprintf( stderr, "Error: command buffer overflown on AMF0 3\n" );
+		goto closeconn;
+	}
+
+	if( send( rt->sock, cmd_buffer, cmd_place, MSG_NOSIGNAL ) != cmd_place )
+	{
+		fprintf( stderr, "Error @setDataFrame onMetadata.\n" );
+		goto closeconn;
+	}
+	
+	OGUSleep(100000);
+
+
+
+
+	cmd_place = 0;
+	rt->nalbuffer = malloc( RTMP_SEND_BUFFER + 13 + 4);
 	rt->nalbuffer[0] = 0x04;
 	rt->nalbuffer[1] = 0x00;
 	rt->nalbuffer[2] = 0x00;
@@ -405,31 +515,43 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 			fprintf( stderr, "Error: overflow on rtmp sending\n" );
 			return -1;
 		}
-		nb[nallen++] = 0;
-		nb[nallen++] = 0;
-		nb[nallen++] = 0;
-		nb[nallen++] = 1;
+		nb[13+nallen++] = 0;
+		nb[13+nallen++] = 0;
+		nb[13+nallen++] = 0;
+		nb[13+nallen++] = 1;
 		rt->nallen = nallen;
 	}
 	else if( len == -2 )
 	{
 		int nallen = rt->nallen;
 		uint8_t * nb = rt->nalbuffer;
-		nb[4] = nallen>>16;
-		nb[5] = nallen>>8;
-		nb[6] = nallen>>0;
+
+		//Round up
+		//nallen = (nallen+3) & 0xffffffc;
+		int nalrep = nallen+1; //+1 = for the data type code.
+		nb[4] = nalrep>>16;
+		nb[5] = nalrep>>8;
+		nb[6] = nalrep>>0;
 		nb[7] = 0x09; // Video data
 		nb[8] = 1; //Stream ID
 		nb[9] = 0;
 		nb[10] = 0;
 		nb[11] = 0;
-		nb[12] = 0x17; //h.264...stuff?
-
-		int ret = send( rt->sock, nb, nallen+13, MSG_NOSIGNAL );
-		if( ret != nallen+13 )
+		nb[12] = 0x17; //Data type code.
+			//0x17 = I-frame
+			//0x27 = B- or P-frame
+		int tosend = nallen + 13;
+//		if( tosend & 1 )
+//		{
+//			nb[tosend] = 0;
+//			tosend++;
+//		}
+		printf( "Sending total len: %d / nallen %d\n", nallen+13, nallen );
+		int ret = send( rt->sock, nb, tosend, MSG_NOSIGNAL );
+		if( ret != tosend )
 		{
 			rt->nallen = 0;
-			fprintf( stderr, "Fault sending [%d != %d]\n", ret, nallen+13 );
+			fprintf( stderr, "Fault sending [%d != %d]\n", ret, tosend );
 			return -1;
 		}
 		rt->nallen = 0;
@@ -443,7 +565,7 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 			fprintf( stderr, "Error: overflow on rtmp sending (data)\n" );
 			return -1;
 		}
-		memcpy( nb + nallen, buffer, len );
+		memcpy( nb + nallen + 13, buffer, len );
 		rt->nallen = nallen + len;
 	}
 	return 0;

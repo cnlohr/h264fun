@@ -14,7 +14,7 @@
 #include <stdint.h>
 
 #define RTMP_DEFAULT_PORT 1935
-#define RTMP_SEND_BUFFER 131072
+#define RTMP_SEND_BUFFER (131072*8)
 
 struct RTMPSession
 {

@@ -47,10 +47,13 @@ int main()
 	}
 
 	printf( "RTMP Server connected.\n" );
+
+	OGUSleep( 1000000 );
+
 	H264Funzie funzie;
 	{
 		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 0 }, { H2FUN_TERMINATOR, 0 } }; // Disable timing.  (Makes it so RTSP determines timing)
-		r = H264FunInit( &funzie, 512, 512, 1, (H264FunData)RTMPSend, &rtmp, params );
+		r = H264FunInit( &funzie, 32, 32, 1, (H264FunData)RTMPSend, &rtmp, params );
 		if( r )
 		{
 			fprintf( stderr, "Closing due to H.264 fun error.\n" );
@@ -133,9 +136,9 @@ int main()
 
 			H264FunAddMB( &funzie, mbx,  mby, buffer, H264FUN_PAYLOAD_LUMA_ONLY );
 		}
-		H264FunEmitFrame( &funzie );
-
-		OGUSleep( 20000 );
+		//H264FunEmitFrame( &funzie );
+		H264FunEmitIFrame( &funzie );
+		OGUSleep( 500000 );
 	}
 
 	return 0;
