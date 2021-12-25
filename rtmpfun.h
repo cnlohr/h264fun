@@ -24,6 +24,7 @@ struct RTMPSession
 	int nallen;
 	int tmsgid;
 	int remote_chunk_size;
+	void * thread_handle;
 };
 
 // Function returns upon successful connection or failure.

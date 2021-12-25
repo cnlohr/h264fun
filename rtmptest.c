@@ -38,7 +38,8 @@ int main()
 			return -6;
 		}
 		fclose( f );
-		r = InitRTMPConnection( &rtmp, 0, "rtmp://ingest.vrcdn.live/live", streamkey );
+//ingest.vrcdn.live
+		r = InitRTMPConnection( &rtmp, 0, "rtmp://localhost/live", streamkey );
 		memset( streamkey, 0, sizeof( streamkey ) );
 		if( r )
 		{
@@ -48,11 +49,11 @@ int main()
 
 	printf( "RTMP Server connected.\n" );
 
-	OGUSleep( 1000000 );
+	//OGUSleep( 1000000 );
 
 	H264Funzie funzie;
 	{
-		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 0 }, { H2FUN_TERMINATOR, 0 } }; // Disable timing.  (Makes it so RTSP determines timing)
+		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 1 }, { H2FUN_TERMINATOR, 0 } }; // Disable timing.  (Makes it so RTSP determines timing)
 		r = H264FunInit( &funzie, 32, 32, 1, (H264FunData)RTMPSend, &rtmp, params );
 		if( r )
 		{
@@ -138,7 +139,7 @@ int main()
 		}
 		//H264FunEmitFrame( &funzie );
 		H264FunEmitIFrame( &funzie );
-		OGUSleep( 500000 );
+		OGUSleep( 30000 );
 	}
 
 	return 0;
