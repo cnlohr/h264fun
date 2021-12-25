@@ -557,7 +557,8 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 
 	char buffer[2048];
 	int plen, i;
-	/*
+
+#if 0
 	OGUSleep(500000);
 
 	const char * audiopacket = "040000000000070801000000af00121056e500";
@@ -575,7 +576,7 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 		fprintf( stderr, "Error, could not send dummy buffer.\n" );
 		goto closeconn;
 	}
-*/
+#endif
 
 	OGUSleep(500000);
 
