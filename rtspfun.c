@@ -216,7 +216,11 @@ void * GThread( void * v )
 					int n = sprintf( sendbuff, "RTSP/1.0 200 OK\r\nCSeq: %d\r\nSession: %d\r\n\r\n", cseq, sessid );
 					send( sock, sendbuff, n, MSG_NOSIGNAL );
 					conn->playing = 0;
-
+				}
+				else if( strncmp( rx_cmd_buffer, "OPTIONS", 5 ) == 0 )
+				{
+					int n = sprintf( sendbuff, "RTSP/1.0 200 OK\r\nCSeq: %d\r\nSession: %d\r\nPublic: DESCRIBE, SETUP, PLAY, PAUSE, OPTIONS\r\n\r\n", cseq, sessid );
+					send( sock, sendbuff, n, MSG_NOSIGNAL );
 				}
 				else if( strncmp( rx_cmd_buffer, "PLAY", 4 ) == 0 )
 				{
