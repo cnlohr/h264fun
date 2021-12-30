@@ -137,27 +137,8 @@ static int H2GetParamValue( const H264ConfigParam * params, H264FunConfigType p 
 	return defaults[p];
 }
 
-int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264FunData datacb, void * opaque, const H264ConfigParam * params )
+void H264FUNPREFIX H264SendSPSPPS( H264Funzie * fun )
 {
-	if( slices > MAX_H264FUNZIE_SLICES ) return -3;
-
-	// A completely dark frame.
-	memset( H2mb_dark, 128, 256 );
-	memset( H2mb_dark+256, 128, 128 );
-	
-	if( ( w & 0xf ) || ( h & 0xf ) ) return -1;
-	fun->bytesofar = 0;
-	fun->bitssofarm7 = 7;
-	fun->w = w;
-	fun->h = h;
-	fun->slices = slices;
-	fun->datacb = datacb;
-	fun->frameno = 0;
-	fun->opaque = opaque;
-	int mbw = fun->mbw = w>>4;
-	int mbh = fun->mbh = h>>4;
-	fun->frameupdates = calloc( sizeof( H264FunzieUpdate ), mbw * mbh );
-	
 	// Generate stream.
 	H2EmitNAL( fun );
 	
@@ -179,8 +160,8 @@ int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264F
 		H2EmitUE( fun, 0 );    // log2_max_pic_order_cnt_lsb_minus4
 	H2EmitUE( fun, 0 );    // num_ref_frames (we only send I slices) (I think this is right)
 	H2EmitU( fun, 0, 1 );	// gaps_in_frame_num_value_allowed_flag  ( =0 says we can't skip frames.)
-	H2EmitUE( fun, mbw-1 ); // pic_width_in_mbs_minus_1.  (x16 px)
-	H2EmitUE( fun, mbh-1 ); // pic_height_in_map_units_minus_1.   (x16 px)
+	H2EmitUE( fun, fun->mbw-1 ); // pic_width_in_mbs_minus_1.  (x16 px)
+	H2EmitUE( fun, fun->mbh-1 ); // pic_height_in_map_units_minus_1.   (x16 px)
 	H2EmitU( fun, 1, 1 ); // frame_mbs_only_flag = 1 //We will not to field/frame encoding.
 	H2EmitU( fun, 0, 1 ); // direct_8x8_inference_flag = 0 // Used for B slices. We will not send B slices.
 	H2EmitU( fun, 0, 1 ); // frame_cropping_flag = 0
@@ -195,12 +176,12 @@ int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264F
 			H2EmitU( fun, 0, 1 ); //colour_description_present_flag = 0
 		H2EmitU( fun, 0, 1 ); // chroma_loc_info_present_flag = 0
 
-		int e = H2GetParamValue( params, H2FUN_TIME_ENABLE );
+		int e = H2GetParamValue( fun->params, H2FUN_TIME_ENABLE );
 		H2EmitU( fun, e, 1 ); //timing_info_present_flag = 1
 		if( e )
 		{
-			H2EmitU( fun, H2GetParamValue( params, H2FUN_TIME_NUMERATOR ), 32 ); // num_units_in_tick = 1
-			H2EmitU( fun, H2GetParamValue( params, H2FUN_TIME_DENOMINATOR ), 32 ); // time_scale = 50
+			H2EmitU( fun, H2GetParamValue( fun->params, H2FUN_TIME_NUMERATOR ), 32 ); // num_units_in_tick = 1
+			H2EmitU( fun, H2GetParamValue( fun->params, H2FUN_TIME_DENOMINATOR ), 32 ); // time_scale = 50
 			H2EmitU( fun, 0, 1 ); // fixed_frame_rate_flag = 0
 		}
 		H2EmitU( fun, 0, 1 ); // nal_hrd_parameters_present_flag = 0
@@ -241,6 +222,39 @@ int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264F
 	H2EmitU( fun, 0, 1 ); //redundant_pic_cnt_present_flag = 0
 	H2EmitU( fun, 1, 1 ); // Stop bit from rbsp_trailing_bits()
 	H2EmitFlush( fun );
+}
+
+
+int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264FunData datacb, void * opaque, const H264ConfigParam * params )
+{
+	if( slices > MAX_H264FUNZIE_SLICES ) return -3;
+
+	// A completely dark frame.
+	memset( H2mb_dark, 128, 256 );
+	memset( H2mb_dark+256, 128, 128 );
+	
+	if( ( w & 0xf ) || ( h & 0xf ) ) return -1;
+	fun->bytesofar = 0;
+	fun->bitssofarm7 = 7;
+	fun->w = w;
+	fun->h = h;
+	fun->slices = slices;
+	fun->datacb = datacb;
+	fun->frameno = 0;
+	fun->opaque = opaque;
+	int mbw = fun->mbw = w>>4;
+	int mbh = fun->mbh = h>>4;
+	fun->frameupdates = calloc( sizeof( H264FunzieUpdate ), mbw * mbh );
+
+	H264FunConfigType t;
+
+	int cfgsize = 0;
+	for( ; params[cfgsize].type != H2FUN_TERMINATOR; cfgsize++ ); cfgsize++;
+
+	fun->params = malloc( cfgsize * sizeof( const H264ConfigParam ) );
+	memcpy( fun->params, params, cfgsize * sizeof( const H264ConfigParam ) );
+	
+	H264SendSPSPPS( fun );
 	
 	int slice = 0;
 	for( slice = 0; slice < slices; slice++ )
@@ -586,6 +600,7 @@ void H264FUNPREFIX H264FunClose( H264Funzie * funzie )
 		FreeFunzieUpdate( &funzie->frameupdates[i] );
 	}
 	free( funzie->frameupdates );
+	free( funzie->params );
 }
 
 const uint8_t h264fun_mp4header[48] = {

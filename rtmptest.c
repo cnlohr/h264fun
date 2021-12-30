@@ -54,7 +54,7 @@ int main()
 	H264Funzie funzie;
 	{
 		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 1 }, { H2FUN_TERMINATOR, 0 } }; // Disable timing.  (Makes it so RTSP determines timing)
-		r = H264FunInit( &funzie, 32, 32, 1, (H264FunData)RTMPSend, &rtmp, params );
+		r = H264FunInit( &funzie, 192, 112, 1, (H264FunData)RTMPSend, &rtmp, params );
 		if( r )
 		{
 			fprintf( stderr, "Closing due to H.264 fun error.\n" );
@@ -62,10 +62,21 @@ int main()
 		}
 	}
 
+	int frameno = 0;
+
 	while( 1 )
 	{
 		int bk;
-		for( bk = 0; bk < 10; bk++ )
+		frameno++;
+
+		if( ( frameno % 100 ) == 0 )
+		{
+			H264SendSPSPPS( &funzie );
+			H264FakeIFrame( &funzie );
+			funzie.datacb( funzie.opaque, 0, -2 );
+		}
+
+		for( bk = 0; bk < 2; bk++ )
 		{
 			int mbx = rand()%(funzie.w/16);
 			int mby = rand()%(funzie.h/16);
@@ -74,7 +85,7 @@ int main()
 			if( bk == 0 )
 			{
 				mbx = mby = 0;
-				basecolor = 0;
+				basecolor = 1;
 			}
 
 			const uint16_t font[] = //3 px wide, buffer to 4; 5 px high, buffer to 8.
@@ -137,8 +148,9 @@ int main()
 
 			H264FunAddMB( &funzie, mbx,  mby, buffer, H264FUN_PAYLOAD_LUMA_ONLY );
 		}
-		//H264FunEmitFrame( &funzie );
-		H264FunEmitIFrame( &funzie );
+		H264FunEmitFrame( &funzie );
+
+		//H264FunEmitIFrame( &funzie );
 		OGUSleep( 30000 );
 	}
 

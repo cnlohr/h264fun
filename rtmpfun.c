@@ -11,6 +11,8 @@
 #include <string.h>
 #include <errno.h>
 
+#define NAL_START 21
+
 
 static int rtmpp_finish_header( uint8_t * buffer, int * place, int maxlen, int post_header_place )
 {
@@ -578,9 +580,10 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 	}
 #endif
 
+#if 1
 	OGUSleep(500000);
 
-	// Who know what this does?
+	// Who knows what this does?
 	const char * videopacket = "0400000000002c090100000017000000000164000bffe100186764000bacd9430ffb84000003000400000300f23c50a65801000468efbcb0";
 	plen = strlen(videopacket)/2;
 	for( i = 0; i < plen; i++ )
@@ -596,16 +599,16 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 		fprintf( stderr, "Error, could not send dummy buffer.\n" );
 		goto closeconn;
 	}
-
+#endif
 
 
 	cmd_place = 0;
-	rt->nalbuffer = malloc( RTMP_SEND_BUFFER + 13 + 4);
+	rt->nalbuffer = malloc( RTMP_SEND_BUFFER + 34);
 	rt->nalbuffer[0] = 0x04;
 	rt->nalbuffer[1] = 0x00;
 	rt->nalbuffer[2] = 0x00;
 	rt->nalbuffer[3] = 0x00;
-	rt->nallen = 0;
+	rt->nallen = NAL_START;
 
 	return 0;
 closeconn:
@@ -630,16 +633,33 @@ void RTMPClose( struct RTMPSession * rt )
 int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 {
 	printf( "RTMP SEND %p %d\n", buffer, len );
+	if( len == -1 )
+	{
+		if( rt->nallen+5 >= RTMP_SEND_BUFFER+13 )
+		{
+			fprintf( stderr, "Error: overflow on rtmp sending\n" );
+			return -1;
+		}
+/*
+		rt->nalbuffer[rt->nallen++] = 0x00;
+		rt->nalbuffer[rt->nallen++] = 0x00;
+		rt->nalbuffer[rt->nallen++] = 0x00;
+		rt->nalbuffer[rt->nallen++] = 0x00;
+		rt->nalbuffer[rt->nallen++] = 0x01;
+*/
+		len = -2;
+	}
+
 	if( len == -2 )
 	{
-		if( rt->nallen )
+		if( rt->nallen > NAL_START )
 		{
 			int nallen = rt->nallen;
 			uint8_t * nb = rt->nalbuffer;
 
 			//Round up
 			//nallen = (nallen+3) & 0xffffffc;
-			int nalrep = nallen+2; //Was 9 //+1 = for the data type code.
+			int nalrep = nallen-12; //Was 9 //+1 = for the data type code.
 			nb[4] = nalrep>>16;
 			nb[5] = nalrep>>8;
 			nb[6] = nalrep>>0;
@@ -649,8 +669,18 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 			nb[10] = 0;
 			nb[11] = 0;
 			nb[12] = 0x17; //Data type code.
-			nb[13] = 0;
-			int ts = 14;
+
+			int encaplen = nallen-21;
+			nb[13] = 1;
+			nb[14] = 0;
+			nb[15] = 0; //Sometimes 0x21?!?
+			nb[16] = 0;
+			nb[17] = 0;
+			nb[18] = encaplen>>16;
+			nb[19] = encaplen>>8;
+			nb[20] = encaplen>>0;
+
+			int ts = 0;
 				//0x17 = I-frame
 				//0x27 = B- or P-frame
 			int tosend = nallen + ts;
@@ -668,24 +698,8 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 				return -1;
 			}
 
-			rt->nallen = 0;
+			rt->nallen = NAL_START;
 		}
-	}
-	else if( len == -1 )
-	{
-		uint8_t * nb = rt->nalbuffer;
-		int nallen = rt->nallen;
-		if( nallen+5 >= RTMP_SEND_BUFFER+13 )
-		{
-			fprintf( stderr, "Error: overflow on rtmp sending\n" );
-			return -1;
-		}
-		nb[13+nallen++] = 0;
-		nb[13+nallen++] = 0;
-		nb[13+nallen++] = 0;
-		nb[13+nallen++] = 0;
-		nb[13+nallen++] = 1;
-		rt->nallen = nallen;
 	}
 
 	if( len >= 0 )
@@ -697,7 +711,7 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 			fprintf( stderr, "Error: overflow on rtmp sending (data)\n" );
 			return -1;
 		}
-		memcpy( nb + nallen + 13, buffer, len );
+		memcpy( nb + nallen, buffer, len );
 		rt->nallen = nallen + len;
 	}
 	return 0;
