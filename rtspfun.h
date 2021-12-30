@@ -11,7 +11,8 @@
 
 struct RTSPSystem;
 
-#define RTSP_DEFAULT_PORT 554
+// Note: Normally 554, but 8554 lets you run as a user.
+#define RTSP_DEFAULT_PORT 8554
 #define DEFAULT_MAX_CONNS 128
 
 // about 300 I_PCM macroblocks.
