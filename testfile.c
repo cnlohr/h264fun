@@ -8,7 +8,7 @@
 void DataCallback( void * opaque, uint8_t * data, int bytes )
 {	
 	// If bytes == -1, then, it indicates a new NAL -> YOU as the USER must emit the 00 00 00 01 (or other header)
-	// If bytes == -2, then that indicates a flush.
+	// If bytes == -2, then that indicates a flush.  If bytes == -3 it's a flsh and we're a header.  If bytes == -4, it's a header with a cork.
 
 	if( bytes >= 0 )
 	{
@@ -20,7 +20,7 @@ void DataCallback( void * opaque, uint8_t * data, int bytes )
 		{
 			fwrite( "\x00\x00\x00\x01", 4, 1, opaque );			
 		}
-		else if( bytes == -2 )
+		else if( bytes < -1 )
 		{
 			fflush( opaque );
 		}

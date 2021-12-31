@@ -21,6 +21,7 @@ struct RTMPSession
 	int sock;
 	void * opaque;
 	uint8_t * nalbuffer;
+	int bookmarksize;
 	int nallen;
 	int tmsgid;
 	int remote_chunk_size;

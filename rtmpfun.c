@@ -557,8 +557,23 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 		goto closeconn;
 	}
 
-	char buffer[2048];
-	int plen, i;
+	rt->nalbuffer = malloc( RTMP_SEND_BUFFER + 34);
+	rt->nalbuffer[0] = 0x04; // Chunck stream ID
+	rt->nalbuffer[1] = 0x00;
+	rt->nalbuffer[2] = 0x00;
+	rt->nalbuffer[3] = 0x00;
+	rt->nallen = NAL_START;
+
+/*
+	cmd_place = 0;
+
+	//rtmp-stream.c `send_video_header(...)`
+	//static void load_headers(struct obs_x264 *obsx264)
+	// NOTE: This outputs NAL_SPS, NAL_PPS and NAL_SEI
+	
+
+*/
+
 
 #if 0
 	OGUSleep(500000);
@@ -580,12 +595,25 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 	}
 #endif
 
-#if 1
+#if 0
 	OGUSleep(500000);
+	char buffer[2048];
+	int plen, i;
 
-	// Who knows what this does?
+/*
+av.PRE gortsplib.NewTrackH264
+ SPS -> [103 100 0 11 172 217 67 15 251 132 0 0 3 0 4 0 0 3 0 242 60 80 166 88]
+ PPS -> [104 239 188 176]
+gortsplib.NewTrackH264 ->  <nil>
+*/
+
+								// 010000530000002c // 419a[2418] // 873f175481148f6ba2cec3fe346f46c39582463af138243fd3c421970e6dd400000b9745044ea8f0
+								// 000000000164000b // ffe1[0018] // 6764000bacd9430ffb84000003000400000300f23c50a658 // 01[0004] // 68efbcb0
 	const char * videopacket = "0400000000002c090100000017000000000164000bffe100186764000bacd9430ffb84000003000400000300f23c50a65801000468efbcb0";
 							  //0400000000002c090100000017000000000164000bffe100186764000bacd9430ffb84000003000400000300f23c50a65801000468efbcb0" //192?x108?
+                              //0400000000002d090100000017000000000164001effe100196764001eacd94080107ba840000003004000000f23c58b658001000468efbcb0 //511x511
+                              //0400000000002d090100000017000000000164001effe100196764001eacd94080107ba840000003004000000f23c58b658001000468efbcb0 //511x511 again
+                              //0400000000002d090100000017000000000164001fffe100196764001facd94080107ba840000003004000001e23c60c658001000468efbcb0 //511x511 @ 60
                               //0400000000002c090100000017000000000164001effe100186764001eacd94080106840000003004000000f23c58b658001000468efbcb0" //512X512
                               //0400000000002e0901000000170000000001640028ffe1001a67640028acd940780227e584000003000400000300f23c60c65801000468efbcb0 //1920x1080
 	plen = strlen(videopacket)/2;
@@ -604,14 +632,6 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 	}
 #endif
 
-
-	cmd_place = 0;
-	rt->nalbuffer = malloc( RTMP_SEND_BUFFER + 34);
-	rt->nalbuffer[0] = 0x04;
-	rt->nalbuffer[1] = 0x00;
-	rt->nalbuffer[2] = 0x00;
-	rt->nalbuffer[3] = 0x00;
-	rt->nallen = NAL_START;
 
 	return 0;
 closeconn:
@@ -647,13 +667,38 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 		rt->nalbuffer[rt->nallen++] = 0x00;
 		rt->nalbuffer[rt->nallen++] = 0x00;
 		rt->nalbuffer[rt->nallen++] = 0x00;
-		rt->nalbuffer[rt->nallen++] = 0x00;
 		rt->nalbuffer[rt->nallen++] = 0x01;
 */
-		len = -2;
+		//len = -2;
 	}
 
-	if( len == -2 )
+//temp notes
+// Our output / theirs
+//000000000000001effe10000674200298de187980a2400000fa00001d4c024850be068ce3a80
+//000000000164001fffe100196764001facd94080107ba840000003004000001e23c60c658001000468efbcb0
+
+	if( len == -5 )
+	{
+		//Prepping header with cork (called after SPS before PPS)
+		rt->nalbuffer[rt->nallen++] = 0xff;  // ???
+		rt->nalbuffer[rt->nallen++] = 0xe1;  // ???
+		rt->bookmarksize = rt->nallen;
+		rt->nalbuffer[rt->nallen++] = 0x00; // will become size of immediate.
+		rt->nalbuffer[rt->nallen++] = 0x00; // will become size of immediate.
+								// 010000530000002c // 419a[2418] // 873f175481148f6ba2cec3fe346f46c39582463af138243fd3c421970e6dd400000b9745044ea8f0
+								// 000000000164000b // ffe1[0018] // 6764000bacd9430ffb84000003000400000300f23c50a658 // 01[0004] // 68efbcb0
+	}
+	if( len == -4 )
+	{
+		rt->nalbuffer[rt->bookmarksize+0] = (rt->nallen - rt->bookmarksize - 2)>>8;
+		rt->nalbuffer[rt->bookmarksize+1] = (rt->nallen - rt->bookmarksize - 2)>>0;
+		rt->nalbuffer[rt->nallen++] = 0x01;
+		rt->bookmarksize = rt->nallen;
+		rt->nalbuffer[rt->nallen++] = 0x00; // will become size of immediate.
+		rt->nalbuffer[rt->nallen++] = 0x00; // will become size of immediate.
+	}
+
+	if( len == -2 || len == -3 || len == -6 )
 	{
 		if( rt->nallen > NAL_START )
 		{
@@ -663,6 +708,10 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 			//Round up
 			//nallen = (nallen+3) & 0xffffffc;
 			int nalrep = nallen-12; //Was 9 //+1 = for the data type code.
+
+			// See flv-mux.c `flv_video(...)`
+
+
 			nb[4] = nalrep>>16;
 			nb[5] = nalrep>>8;
 			nb[6] = nalrep>>0;
@@ -671,27 +720,39 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 			nb[9] = 0;
 			nb[10] = 0;
 			nb[11] = 0;
-			nb[12] = 0x17; //Data type code.
+
+				//0x17 = I-frame
+				//0x27 = B- or P-frame
+			nb[12] = (len == -6)?0x27:0x17; //Data type code.
+
+			static int whichtsa = 0;
+			whichtsa++;
+			int tsa = 0;
+			// Determined experimentally.
+			if( whichtsa == 1) tsa = 0x00;
+			if( whichtsa == 2) tsa = 0x10;
+			if( whichtsa == 3) tsa = 0x53;
+			if( whichtsa == 4) { tsa = 0x21; whichtsa = 0; }
 
 			int encaplen = nallen-21;
-			nb[13] = 1;
-			nb[14] = 0;
-			nb[15] = 0; //Sometimes 0x21?!?
-			nb[16] = 0;
+			nb[13] = (len == -2 || len == -6)?1:0; //0: is_header, 1: !is_header
+			nb[14] = 0; //Timestamp 
+			nb[15] = 0; //Timestamp 
+			nb[16] = tsa; //Timestamp 
 			nb[17] = 0;
 			nb[18] = encaplen>>16;
 			nb[19] = encaplen>>8;
 			nb[20] = encaplen>>0;
 
+			if( len == -3 )
+			{
+				rt->nalbuffer[rt->bookmarksize+0] = (rt->nallen - rt->bookmarksize - 2)>>8;
+				rt->nalbuffer[rt->bookmarksize+1] = (rt->nallen - rt->bookmarksize - 2)>>0;
+			}
+
+
 			int ts = 0;
-				//0x17 = I-frame
-				//0x27 = B- or P-frame
 			int tosend = nallen + ts;
-	//		if( tosend & 1 )
-	//		{
-	//			nb[tosend] = 0;
-	//			tosend++;
-	//		}
 			printf( "Sending total len: %d / nallen %d\n", nallen+ts, nallen );
 			int ret = send( rt->sock, nb, tosend, MSG_NOSIGNAL );
 			if( ret != tosend )
@@ -705,7 +766,7 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 		}
 	}
 
-	if( len >= 0 )
+	if( len > 0 )
 	{
 		int nallen = rt->nallen;
 		uint8_t * nb = rt->nalbuffer;

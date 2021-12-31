@@ -141,9 +141,10 @@ void H264FUNPREFIX H264SendSPSPPS( H264Funzie * fun )
 {
 	// Generate stream.
 	H2EmitNAL( fun );
+	fun->datacb( fun->opaque, 0, -5 );
 	
 	//seq_parameter_set_rbsp()
-	H2EmitU( fun, BuildNALU( 3, 7 ), 8 ); //NALU "7 = sequence parameter set"
+	H2EmitU( fun, BuildNALU( 3, 7 ), 8 ); //NALU "7 = sequence parameter set" or SPS
 	H2EmitU( fun, 66, 8 ); // Baseline Profile  (WAS ORIGINALLY 66)  // profile_idc 
 	H2EmitU( fun, 0, 1 );  // We're not going to honor constraints. constraint_set0_flag? (We are 66 compliant) TODO: REVISIT
 	H2EmitU( fun, 0, 1 );  // We're not going to honor constraints. constraint_set1_flag?  XXX TODO: Without this we can't have multiple groupled slices.
@@ -198,6 +199,7 @@ void H264FUNPREFIX H264SendSPSPPS( H264Funzie * fun )
 
 	H2EmitU( fun, 1, 1 ); // Stop bit from rbsp_trailing_bits()
 	H2EmitFlush( fun );
+	fun->datacb( fun->opaque, 0, -4 );
 
 	//pps (need to be ID 0)
 	// 00 00 00 01 68 // EB E3 CB 22 C0 (OLD)
@@ -222,6 +224,7 @@ void H264FUNPREFIX H264SendSPSPPS( H264Funzie * fun )
 	H2EmitU( fun, 0, 1 ); //redundant_pic_cnt_present_flag = 0
 	H2EmitU( fun, 1, 1 ); // Stop bit from rbsp_trailing_bits()
 	H2EmitFlush( fun );
+	fun->datacb( fun->opaque, 0, -3 );
 }
 
 
@@ -355,6 +358,7 @@ void H264FUNPREFIX H264FakeIFrame( H264Funzie * fun )
 		H2EmitU( fun, 1, 1 ); // Stop bit from rbsp_trailing_bits()
 		H2EmitFlush( fun );
 	}
+	fun->datacb( fun->opaque, 0, -2 );
 }
 
 
@@ -486,7 +490,7 @@ int H264FUNPREFIX H264FunEmitFrame( H264Funzie * fun )
 		H2EmitFlush( fun );
 	}
 
-	fun->datacb( fun->opaque, 0, -2 );
+	fun->datacb( fun->opaque, 0, -6 );
 }
 
 

@@ -29,7 +29,7 @@ void RTSPSend( void * opaque, uint8_t * buffer, int bytes )
 	int sock = conn->sock;
 	conn->connected = 1;
 	// If bytes == -1, then, it indicates a new NAL -> YOU as the USER must emit the 00 00 00 01 (or other header)
-	// If bytes == -2, then that indicates a flush.
+	// If bytes == -2, then that indicates a flush.  -3 = flush and we're a header. -4 = header with cork.
 
 	if( bytes == -1 )
 	{
@@ -37,7 +37,7 @@ void RTSPSend( void * opaque, uint8_t * buffer, int bytes )
 	//	bytes = 4;
 		bytes = -2;
 	}
-	if( bytes == -2 )
+	if( bytes < -1 )
 	{
 		if( conn->tx_buffer_place != 16 )
 		{
