@@ -121,7 +121,7 @@ static void FreeFunzieUpdate( struct H264FunzieUpdate_t * thisupdate )
 static int H2GetParamValue( const H264ConfigParam * params, H264FunConfigType p )
 {
 	if( p >= H2FUN_MAX ) return 0;
-	static const int defaults[] = { 0, 1, 1000, 30000 }; 
+	static const int defaults[] = { 0, 1, 1000, 30000, 0 }; 
 	int i;
 	if( params )
 	{
@@ -142,7 +142,9 @@ void H264FUNPREFIX H264SendSPSPPS( H264Funzie * fun )
 	// Generate stream.
 	H2EmitNAL( fun );
 	fun->datacb( fun->opaque, 0, -5 );
-	
+
+	fun->cnt_type = H2GetParamValue( fun->params, H2FUN_CNT_TYPE );
+
 	//seq_parameter_set_rbsp()
 	H2EmitU( fun, BuildNALU( 3, 7 ), 8 ); //NALU "7 = sequence parameter set" or SPS
 	H2EmitU( fun, 66, 8 ); // Baseline Profile  (WAS ORIGINALLY 66)  // profile_idc 
@@ -157,7 +159,8 @@ void H264FUNPREFIX H264SendSPSPPS( H264Funzie * fun )
 	H2EmitUE( fun, 0 );    // seq_parameter_set_id = 0
 
 	H2EmitUE( fun, 12 );   // log2_max_frame_num_minus4  (16-bit frame numbers)
-	H2EmitUE( fun, 0 );    // pic_order_cnt_type
+	H2EmitUE( fun, fun->cnt_type );    // pic_order_cnt_type
+	if( fun->cnt_type == 0 )
 		H2EmitUE( fun, 0 );    // log2_max_pic_order_cnt_lsb_minus4
 	H2EmitUE( fun, 0 );    // num_ref_frames (we only send I slices) (I think this is right)
 	H2EmitU( fun, 0, 1 );	// gaps_in_frame_num_value_allowed_flag  ( =0 says we can't skip frames.)
@@ -276,8 +279,11 @@ int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264F
 		H2EmitUE( fun, 0 );    //pic_parameter_set_id = 0 (referencing pps 0)
 		H2EmitU( fun, fun->frameno, 16 );	//frame_num
 		H2EmitUE( fun, 0 ); // idr_pic_id
+		if( fun->cnt_type == 0 )
+		{
 			//pic_order_cnt_type => 0
 			H2EmitU( fun, slice, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)  (TODO: REVISIT)?
+		}
 
 		//ref_pic_list_reordering() -> Nothing
 		//dec_ref_pic_marking(()
@@ -330,8 +336,11 @@ void H264FUNPREFIX H264FakeIFrame( H264Funzie * fun )
 		H2EmitUE( fun, 0 );    //pic_parameter_set_id = 0 (referencing pps 0)
 		H2EmitU( fun, fun->frameno, 16 );	//frame_num
 		H2EmitUE( fun, 0 ); // idr_pic_id
+		if( fun->cnt_type == 0 )
+		{
 			//pic_order_cnt_type => 0
 			H2EmitU( fun, slice, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)  (TODO: REVISIT)?
+		}
 
 		//ref_pic_list_reordering() -> Nothing
 		//dec_ref_pic_marking(()
@@ -420,7 +429,11 @@ int H264FUNPREFIX H264FunEmitFrame( H264Funzie * fun )
 		H2EmitUE( fun, 5 );    //P-slice only. (slice_type == 5 (P slice))  (P and I allowed macroblocks)
 		H2EmitUE( fun, 0 );    //pic_parameter_set_id = 0 (referencing pps 0)
 		H2EmitU( fun, fun->frameno, 16 );	//frame_num
-		H2EmitU( fun, 0, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)
+
+		if( fun->cnt_type == 0 )
+		{
+			H2EmitU( fun, 0, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)
+		}
 
 		H2EmitU( fun, 0, 1 ); // num_ref_idx_active_override_flag = 0
 
@@ -520,8 +533,11 @@ int H264FUNPREFIX H264FunEmitIFrame( H264Funzie * fun )
 		H2EmitUE( fun, 0 );    //pic_parameter_set_id = 0 (referencing pps 0)
 		H2EmitU( fun, fun->frameno, 16 );	//frame_num
 		H2EmitUE( fun, 0 ); // idr_pic_id
+		if( fun->cnt_type == 0 )
+		{
 			//pic_order_cnt_type => 0
 			H2EmitU( fun, slice, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)  (TODO: REVISIT)?
+		}
 
 		//ref_pic_list_reordering() -> Nothing
 		//dec_ref_pic_marking(()

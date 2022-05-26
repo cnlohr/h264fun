@@ -56,6 +56,7 @@ struct H264Funzie_t
 	uint8_t bytesofar, bitssofarm7; // defaults to 7.
 	uint16_t slices;
 	uint16_t w, h;
+	uint8_t cnt_type;
 	uint16_t mbw, mbh; //macroblock w, macroblock h.
 	int frameno;
 
@@ -74,6 +75,7 @@ typedef enum H264FunConfigType_t
 	H2FUN_TIME_ENABLE,
 	H2FUN_TIME_NUMERATOR,   // 1000 default
 	H2FUN_TIME_DENOMINATOR, // 30000 default
+	H2FUN_CNT_TYPE,         // 0 default (only 0 and 2 supported)
 	H2FUN_MAX
 } H264FunConfigType;
 
