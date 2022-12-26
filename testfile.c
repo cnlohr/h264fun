@@ -71,7 +71,7 @@ int main()
 		memset( buffer, (frame%4)*60+3, 256 );
 		H264FunAddMB( &funzie, 1, 0, buffer, H264FUN_PAYLOAD_LUMA_ONLY );
 
-
+		H264FunEmitIFrame( &funzie );
 #else
 		int nmx, nmy;
 		switch( frame % 4 )
@@ -98,8 +98,8 @@ int main()
 			H264FunAddMB( &funzie, mx*4+lx, my*4+ly, buffer, H264FUN_PAYLOAD_LUMA_ONLY );
 		}
 		mx = nmx; my = nmy;
-#endif
 		H264FunEmitFrame( &funzie );
+#endif
 	}
 
 

@@ -20,9 +20,24 @@
 
 #include "os_generic.h"
 
+int g_mbw, g_mbh;
+
+int akey = 0;
+
+void * InputThread( void * v )
+{
+	while( 1 )
+	{
+		int c = getchar();
+		if( c == 10 )
+			akey = !akey;
+	}
+}
+	
 int main()
 {
 	int r;
+	OGCreateThread( InputThread, 0 );
 	struct RTMPSession rtmp;
 	{
 		FILE * f = fopen( ".streamkey", "rb" );
@@ -40,7 +55,7 @@ int main()
 		fclose( f );
 //ingest.vrcdn.live
 //localhost
-		r = InitRTMPConnection( &rtmp, 0, "rtmp://localhost/live", streamkey );
+		r = InitRTMPConnection( &rtmp, 0, "rtmp://ingest.vrcdn.live/live", streamkey );
 		memset( streamkey, 0, sizeof( streamkey ) );
 		if( r )
 		{
@@ -54,8 +69,12 @@ int main()
 
 	H264Funzie funzie;
 	{
-		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 1 }, { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 30000 }, { H2FUN_TERMINATOR, 0 } };
-		r = H264FunInit( &funzie, 32, 32, 1, (H264FunData)RTMPSend, &rtmp, params );
+		int w = 128;
+		int h = 64;
+		g_mbw = w/16;
+		g_mbh = h/16;
+		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 1 }, { H2FUN_TIME_NUMERATOR, 500 }, { H2FUN_TIME_DENOMINATOR, 60000 }, { H2FUN_TERMINATOR, 0 } };
+		r = H264FunInit( &funzie, w, h , 1, (H264FunData)RTMPSend, &rtmp, params );
 		if( r )
 		{
 			fprintf( stderr, "Closing due to H.264 fun error.\n" );
@@ -70,32 +89,20 @@ int main()
 	{
 		int bk;
 		frameno++;
-/*
-		if( ( frameno % 100 ) == 1 )
-		{
-			//H264FakeIFrame( &funzie );
 
-			if( frameno > 50 )
-			{
-			//	H264SendSPSPPS( &funzie, 0 );
-			}
+		if( ( frameno % 200 ) == 1 )
+		{
+			H264FakeIFrame( &funzie );
+			//H264FunEmitIFrame( &funzie );
 		}
 		else
-*/
 		{
-#define DOALL
-#ifndef DOALL
 			for( bk = 0; bk < 2; bk++ )
 			{
-				int mbx = frameno%16;//rand()%(funzie.w/16);
-				int mby = (frameno/16)%16;//rand()%(funzie.h/16);
-#else
-			for( bk = 0; bk < 4; bk++ )
-			{
-				int mbx = bk % 2;
-				int mby = bk / 2;
-#endif
-				int basecolor = (rand()%50)+200;
+				int mbx = frameno%g_mbw;//rand()%(funzie.w/16);
+				int mby = (frameno/g_mbw)%g_mbh;//rand()%(funzie.h/16);
+
+				int basecolor = akey?254:1;
 				uint8_t * buffer = malloc( 256 );
 				memset( buffer, 0xff, 256 );
 				if( bk == 0 )
@@ -161,11 +168,10 @@ int main()
 						}
 					}
 				}
-				printf( "FUNMB %d %d\n", mbx, mby );
 				H264FunAddMB( &funzie, mbx,  mby, buffer, H264FUN_PAYLOAD_LUMA_ONLY );
 			}
-			//H264FunEmitFrame( &funzie );
-			H264FunEmitIFrame( &funzie );
+			H264FunEmitFrame( &funzie );
+			//H264FunEmitIFrame( &funzie );
 		}
 		OGUSleep( 30000 );
 	}

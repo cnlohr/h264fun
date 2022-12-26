@@ -169,10 +169,14 @@ void H264FUNPREFIX H264SendSPSPPS( H264Funzie * fun, int emissionmode )
 	H2EmitU( fun, 1, 1 ); // frame_mbs_only_flag = 1 //We will not to field/frame encoding.
 	H2EmitU( fun, 0, 1 ); // direct_8x8_inference_flag = 0 // Used for B slices. We will not send B slices.
 	H2EmitU( fun, 0, 1 ); // frame_cropping_flag = 0
-	H2EmitU( fun, 1, 1 ); // vui_parameters_present_flag = 1
+	H2EmitU( fun, 0, 1 ); // vui_parameters_present_flag = 0
 		//vui_parameters()
 		H2EmitU( fun, 1, 1 ); // aspect_ratio_info_present_flag = 1
-			H2EmitU( fun, 1, 8 ); // 1:1 Square
+			H2EmitU( fun, 255, 8 ); // 1:1 Square = 1; 255 = Extended_SAR
+			// In spite of aspect_ratio_idc != 255, parsers seem to want sar_width & sar_height
+			// So, instead we're just going to say we use a custom SAR.
+			H2EmitU( fun, 16, 16 ); // sar_width
+			H2EmitU( fun, 16, 16 ); // sar_height
 		H2EmitU( fun, 0, 1 ); // overscan_info_present_flag = 0
 		H2EmitU( fun, 1, 1 ); // video_signal_type_present_flag = 1
 			H2EmitU( fun, 0, 3 ); //video_format
@@ -574,7 +578,7 @@ int H264FUNPREFIX H264FunEmitIFrame( H264Funzie * fun )
 			}
 */
 			//Send an I_PCM macroblock, lossless.
-			H2EmitUE( fun, 25+5 ); //I_PCM=25 (mb_type)  (see 
+			H2EmitUE( fun, 25 ); //I_PCM=25 (mb_type)  (see 
 				// "The macroblock types for P and SP slices are specified in Table 7-10 and Table 7-8. mb_type values 0 to 4 are specified
 				// in Table 7-10 and mb_type values 5 to 30 are specified in Table 7-8, indexed by subtracting 5 from the value of
 				// mb_type."
