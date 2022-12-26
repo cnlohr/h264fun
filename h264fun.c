@@ -137,7 +137,7 @@ static int H2GetParamValue( const H264ConfigParam * params, H264FunConfigType p 
 	return defaults[p];
 }
 
-void H264FUNPREFIX H264SendSPSPPS( H264Funzie * fun )
+void H264FUNPREFIX H264SendSPSPPS( H264Funzie * fun, int emissionmode )
 {
 	// Generate stream.
 	H2EmitNAL( fun );
@@ -260,8 +260,8 @@ int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264F
 	fun->params = malloc( cfgsize * sizeof( const H264ConfigParam ) );
 	memcpy( fun->params, params, cfgsize * sizeof( const H264ConfigParam ) );
 	
-	H264SendSPSPPS( fun );
-	
+	H264SendSPSPPS( fun, 1 );
+
 	int slice = 0;
 	for( slice = 0; slice < slices; slice++ )
 	{
@@ -312,7 +312,8 @@ int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264F
 	}
 	
 	fun->datacb( fun->opaque, 0, -2 );
-	
+
+	printf( "=======================================================================\n" );
 	return 0;
 }
 
@@ -373,6 +374,12 @@ void H264FUNPREFIX H264FakeIFrame( H264Funzie * fun )
 
 void H264FUNPREFIX H264FunAddMB( H264Funzie * fun, int x, int y, uint8_t * data, H264FunPayload pl )
 {
+	if( (unsigned)x >= (unsigned)fun->mbw || (unsigned)y >= (unsigned)fun->mbh )
+	{
+		fprintf( stderr, "Error: Writing %d, %d out of bounds.\n", x, y );
+		return;
+	}
+
 	int mbid = (x+y*fun->mbw);
 	H264FunzieUpdate * update = &fun->frameupdates[mbid];
 	if( update )
@@ -390,7 +397,7 @@ void H264FUNPREFIX H264FunAddMB( H264Funzie * fun, int x, int y, uint8_t * data,
 	{
 		update->data = malloc( 384 );
 		memcpy( update->data, data, 384 );
-		pl = H264FUN_PAYLOAD_LUMA_AND_CHROMA;
+		update->pl = H264FUN_PAYLOAD_LUMA_AND_CHROMA;
 	}
 	else
 	{

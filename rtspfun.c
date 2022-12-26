@@ -280,8 +280,12 @@ a=type:broadcast\n\
 m=video 0 RTP/AVP 96\n\
 b=RR:0\n\
 a=rtpmap:96 H264/90000\n\
-a=fmtp:96 packetization-mode=2;profile-level-id=420029;sprop-parameter-sets=Z0IAKY3gQAgmAovAAAD6AAAdTAJIUL4=,aM46gA==;\n\
+a=cliprect:0,0,256,128\n\
+a=fmtp:96 packetization-mode=2;profile-level-id=42e01f;sprop-parameter-sets=Z0IAKY3gQAgmAovAAAD6AAAdTAJIUL4=,aM46gA==;\n\
 ";
+
+//XXX TODO: sprop-parameter-sets should be pps/sps of encoded stream.
+
 
 //a=control:rtsp://127.0.0.1:8554/trackID=0\n\
 

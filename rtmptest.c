@@ -39,6 +39,7 @@ int main()
 		}
 		fclose( f );
 //ingest.vrcdn.live
+//localhost
 		r = InitRTMPConnection( &rtmp, 0, "rtmp://localhost/live", streamkey );
 		memset( streamkey, 0, sizeof( streamkey ) );
 		if( r )
@@ -49,12 +50,12 @@ int main()
 
 	printf( "RTMP Server connected.\n" );
 
-	//OGUSleep( 1000000 );
+	OGUSleep( 500000 );
 
 	H264Funzie funzie;
 	{
 		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 1 }, { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 30000 }, { H2FUN_TERMINATOR, 0 } };
-		r = H264FunInit( &funzie, 256, 256, 1, (H264FunData)RTMPSend, &rtmp, params );
+		r = H264FunInit( &funzie, 32, 32, 1, (H264FunData)RTMPSend, &rtmp, params );
 		if( r )
 		{
 			fprintf( stderr, "Closing due to H.264 fun error.\n" );
@@ -62,25 +63,41 @@ int main()
 		}
 	}
 
+	usleep(500000);
 	int frameno = 0;
 
 	while( 1 )
 	{
 		int bk;
 		frameno++;
-
-		if( ( frameno % 100 ) == 0 )
+/*
+		if( ( frameno % 100 ) == 1 )
 		{
-			H264FakeIFrame( &funzie );
+			//H264FakeIFrame( &funzie );
+
+			if( frameno > 50 )
+			{
+			//	H264SendSPSPPS( &funzie, 0 );
+			}
 		}
 		else
+*/
 		{
+#define DOALL
+#ifndef DOALL
 			for( bk = 0; bk < 2; bk++ )
 			{
-				int mbx = rand()%(funzie.w/16);
-				int mby = rand()%(funzie.h/16);
-				int basecolor = rand()%253 + 1;
+				int mbx = frameno%16;//rand()%(funzie.w/16);
+				int mby = (frameno/16)%16;//rand()%(funzie.h/16);
+#else
+			for( bk = 0; bk < 4; bk++ )
+			{
+				int mbx = bk % 2;
+				int mby = bk / 2;
+#endif
+				int basecolor = (rand()%50)+200;
 				uint8_t * buffer = malloc( 256 );
+				memset( buffer, 0xff, 256 );
 				if( bk == 0 )
 				{
 					mbx = mby = 0;
@@ -116,7 +133,7 @@ int main()
 					int cx, cy;
 					int writepos = 0;
 					for( cy = 0; cy < 2; cy++ )
-					for( cx = 0; cx < 4; cx++ )
+					for( cx = 0; cx < 2; cx++ )
 					{
 						uint16_t pxls = 0;
 						if( cy == 0 )
@@ -135,7 +152,7 @@ int main()
 						}
 						int px, py;
 						for( py = 0; py < 8; py++ )
-						for( px = 0; px < 4; px++ )
+						for( px = 0; px < 8; px++ )
 						{
 							int color = basecolor;
 							if( px < 3 ) color = ((pxls>>(14-(py*3-3+px)))&1)?(255-basecolor):basecolor;
@@ -144,10 +161,11 @@ int main()
 						}
 					}
 				}
-
+				printf( "FUNMB %d %d\n", mbx, mby );
 				H264FunAddMB( &funzie, mbx,  mby, buffer, H264FUN_PAYLOAD_LUMA_ONLY );
 			}
-			H264FunEmitFrame( &funzie );
+			//H264FunEmitFrame( &funzie );
+			H264FunEmitIFrame( &funzie );
 		}
 		OGUSleep( 30000 );
 	}

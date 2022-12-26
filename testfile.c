@@ -31,6 +31,8 @@ void DataCallback( void * opaque, uint8_t * data, int bytes )
 
 int main()
 {
+#define MINITEST
+
 	int r;
 	H264Funzie funzie;
 	FILE * f = fopen( "testfile.h264", "wb" );
@@ -39,8 +41,13 @@ int main()
 	{
 		//const H264ConfigParam params[] = { { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 10000 }, { H2FUN_TERMINATOR, 0 } };
 		//r = H264FunInit( &funzie, 256, 256, 1, DataCallback, f, params );
-		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 0 }, { H2FUN_TERMINATOR, 0 } };
-		r = H264FunInit( &funzie, 256, 256, 1, DataCallback, f, params );
+		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 1 }, { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 30000 }, { H2FUN_TERMINATOR, 0 }  };
+
+#ifdef MINITEST
+		r = H264FunInit( &funzie, 32, 16, 1, DataCallback, f, params );
+#else
+		r = H264FunInit( &funzie, 512, 512, 1, DataCallback, f, params );
+#endif
 
 		if( r )
 		{
@@ -50,19 +57,48 @@ int main()
 	}
 
 	int frame;
+
+	int mx = 0;
+	int my = 0;
 	for( frame = 0; frame < 400; frame++ )
 	{
-		int bk;
-		for( bk = 0; bk < 10; bk++ )
+#ifdef MINITEST
+		uint8_t * buffer = malloc( 256 );
+		memset( buffer, (frame%4)*60+3, 256 );
+		H264FunAddMB( &funzie, 0, 0, buffer, H264FUN_PAYLOAD_LUMA_ONLY );
+
+		buffer = malloc( 256 );
+		memset( buffer, (frame%4)*60+3, 256 );
+		H264FunAddMB( &funzie, 1, 0, buffer, H264FUN_PAYLOAD_LUMA_ONLY );
+
+
+#else
+		int nmx, nmy;
+		switch( frame % 4 )
+		{
+		case 0: nmx = 2; nmy = 2; break;
+		case 1: nmx = 3; nmy = 2; break;
+		case 2: nmx = 3; nmy = 3; break;
+		case 3: nmx = 2; nmy = 3; break;
+		}
+		int lx, ly;
+		for( lx = 0; lx < 4; lx++ )
+		for( ly = 0; ly < 4; ly++ )
 		{
 			uint8_t * buffer = malloc( 256 );
-			int i;
-			for( i = 0; i < 256; i++ )
-			{
-				memset( buffer, (i&1)*255, 256 );
-			}
-			H264FunAddMB( &funzie, rand()%(funzie.w/16), rand()%(funzie.h/16), buffer, H264FUN_PAYLOAD_LUMA_ONLY );
+			memset( buffer, 250, 256 );
+			H264FunAddMB( &funzie, nmx*4+lx, nmy*4+ly, buffer, H264FUN_PAYLOAD_LUMA_ONLY );
 		}
+
+		for( lx = 0; lx < 4; lx++ )
+		for( ly = 0; ly < 4; ly++ )
+		{
+			uint8_t * buffer = malloc( 256 );
+			memset( buffer, 5, 256 );
+			H264FunAddMB( &funzie, mx*4+lx, my*4+ly, buffer, H264FUN_PAYLOAD_LUMA_ONLY );
+		}
+		mx = nmx; my = nmy;
+#endif
 		H264FunEmitFrame( &funzie );
 	}
 
