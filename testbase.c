@@ -1,3 +1,15 @@
+/*
+
+	Raw first test - this generates a raw h264 file.
+
+	In general you probably shouldn't mess with this file.
+
+	It's mostly just notes for showing people who I learn about protocols.
+
+*/
+
+
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
