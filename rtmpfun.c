@@ -1,13 +1,21 @@
-#include "rtmpfun.h"
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
+#if defined(WINDOWS) || defined(WIN32) || defined( _WIN32 ) || defined( WIN64 )
+#include <winsock2.h>
+#undef MSG_NOSIGNAL
+#define MSG_NOSIGNAL      0x000
+#define MSG_MORE MSG_PARTIAL 
+#else
 #include <netdb.h>
 #include <sys/types.h> 
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#endif
+
+#include "rtmpfun.h"
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
 #include <string.h>
 #include <errno.h>
 
@@ -166,6 +174,11 @@ static void * RTMPListenThreadFunction( void * v )
 // Function returns upon successful connection or failure.
 int InitRTMPConnection( struct RTMPSession * rt, void * opaque, const char * uri, const char * streamkey )
 {
+#if defined(WINDOWS) || defined(WIN32) || defined( _WIN32 ) || defined( WIN64 )
+    WORD wVersionRequested = MAKEWORD(2, 2);
+	WSADATA wsaData;
+	WSAStartup(wVersionRequested, &wsaData);
+#endif
 	int urilen = strlen( uri );
 	if( urilen < 8 || strncmp( uri, "rtmp://", 7 ) != 0 )
 	{
@@ -220,7 +233,7 @@ int InitRTMPConnection( struct RTMPSession * rt, void * opaque, const char * uri
 		rmt_addr.sin_family = AF_INET;
 		rmt_addr.sin_port = htons( portno );
 		rmt_addr.sin_addr = *((struct in_addr *)he->h_addr);
-		bzero(&(rmt_addr.sin_zero), 8);
+		memset(&(rmt_addr.sin_zero), 0, sizeof(rmt_addr.sin_zero));
 
 		if (connect( rt->sock, (struct sockaddr *)&rmt_addr, sizeof( rmt_addr ) ) < 0 )
 		{
@@ -308,8 +321,19 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 			}
 			if( memcmp( check_c0c1, my_c0c1+1, sizeof( check_c0c1 ) ) != 0 )
 			{
-				fprintf( stderr, "Error: c0c1 check bad.\n" );
-				goto closeconn;
+				fprintf( stderr, "Error: c0c1 check bad. It seems some RTMP severs do things wrong.  Let's YOLO this.\n" );
+				/*int i;
+				for( i = 0; i < sizeof( check_c0c1 ); i++ )
+				{
+					printf( "%02x", ((uint8_t*)check_c0c1)[i] );
+				}
+				printf( "\n" );
+				for( i = 0; i < sizeof( check_c0c1 ); i++ )
+				{
+					printf( "%02x", ((uint8_t*)(my_c0c1+1))[i] );
+				}
+				printf( "\n" );
+				goto closeconn;*/
 			}
 		}
 	}
@@ -337,7 +361,7 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 		goto closeconn;
 	}
 
-	OGUSleep(1000);
+	OGUSleep(200000);
 
 	cmd_place = 0;
 
@@ -370,7 +394,7 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 		goto closeconn;
 	}
 
-	OGUSleep(3000);
+	OGUSleep(200000);
 
 	// From here, we basically just ignore everything the server tells us.
 
@@ -394,7 +418,7 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 		goto closeconn;
 	}
 
-	OGUSleep(10000);
+	OGUSleep(200000);
 
 	cmd_place = 0;
 	header_place = cmd_place; rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x43, 0x14, 0 ); //AMF0 Command
@@ -410,13 +434,11 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 		goto closeconn;
 	}
 
-	if( send( rt->sock, cmd_buffer, cmd_place, MSG_NOSIGNAL ) != cmd_place )
+	if( send( rt->sock, cmd_buffer, cmd_place, MSG_NOSIGNAL | MSG_MORE ) != cmd_place )
 	{
 		fprintf( stderr, "Error connect.\n" );
 		goto closeconn;
 	}
-
-	OGUSleep(1000);
 
 	cmd_place = 0;
 
@@ -432,15 +454,13 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 		goto closeconn;
 	}
 
-	if( send( rt->sock, cmd_buffer, cmd_place, MSG_NOSIGNAL ) != cmd_place )
+	if( send( rt->sock, cmd_buffer, cmd_place, MSG_NOSIGNAL | MSG_MORE ) != cmd_place )
 	{
 		fprintf( stderr, "Error connect.\n" );
 		goto closeconn;
 	}
 
-	OGUSleep(1000);
 
-/*
 	cmd_place = 0;
 	header_place = cmd_place; rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x03, 0x14, 0 ); //AMF0 Command
 	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "_checkbw" );
@@ -461,8 +481,8 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 		goto closeconn;
 	}
 
-	OGUSleep(1000);
-*/
+	OGUSleep(200000);
+
 
 	cmd_place = 0;
 	header_place = cmd_place; rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x04, 0x14, 1 ); //AMF0 Command
@@ -470,7 +490,7 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 	rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), rt->tmsgid++ );
 	rtmpp_add_raw_null( cmd_buffer, &cmd_place, sizeof( cmd_buffer ) );
 	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), streamkey );
-	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), (app[0]=='/')?(app+1):app );
+	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "live" ); // This appears to always be "live" even when it's a different stream.  /// (app[0]=='/')?(app+1):app );
 	rtmpp_finish_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), header_place );
 
 
@@ -487,7 +507,7 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 	}
 	
 	//XXX TODO: Here is a place we kinda need to wait for them to give us the green light.
-	OGUSleep(1000);
+	OGUSleep(800000);
 
 
 
@@ -497,7 +517,7 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "@setDataFrame" );
 	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "onMetaData" );
 	rtmpp_add_raw_array( cmd_buffer, &cmd_place, sizeof( cmd_buffer ) );
-	rtmpp_add_raw_uint32( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 20 ); //Array length 20 normally or 8 truncated
+	rtmpp_add_raw_uint32( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 8 ); //Array length 20 normally or 8 truncated
 		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "duration" );
 		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0 );
 		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "fileSize" );
@@ -563,6 +583,9 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 	rt->nalbuffer[2] = 0x00;
 	rt->nalbuffer[3] = 0x00;
 	rt->nallen = NAL_START;
+
+	OGUSleep(100000);
+	printf( "OK\n" );
 
 /*
 	cmd_place = 0;
@@ -655,7 +678,32 @@ void RTMPClose( struct RTMPSession * rt )
 
 int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 {
-	printf( "RTMP SEND %p %d\n", buffer, len );
+	double dNow = OGGetAbsoluteTime();
+/*
+	static FILE * flog;
+	if( !flog ) flog = fopen( "testout.h264", "wb" );
+	if( len == -1 )
+	{
+		fwrite( "\x00\x00\x00\x01", 4, 1, flog );
+		printf( "***NAL***\n" );
+	}
+	else if( len > 0 )
+	{
+		printf( "%d\n", len );
+		fwrite( buffer, len, 1, flog );
+	}
+
+	if( len == 1 )
+	{
+		printf( "EMIT: %02x\n", buffer[0] );
+	}
+	else
+	{
+		printf( "RTMP SEND %p %d\n", buffer, len );
+	}
+
+*/
+
 	if( len == -1 )
 	{
 		if( rt->nallen+5 >= RTMP_SEND_BUFFER+13 )
@@ -677,11 +725,76 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 //000000000000001effe10000674200298de187980a2400000fa00001d4c024850be068ce3a80
 //000000000164001fffe100196764001facd94080107ba840000003004000001e23c60c658001000468efbcb0
 
+	// For this section, it goes 
+	// -5 = /* SPS */
+	// -4 = /* PPS */
+	// -3 => Transmit
 	if( len == -5 )
 	{
-		//Prepping header with cork (called after SPS before PPS)
-		rt->nalbuffer[rt->nallen++] = 0xff;  // ???
-		rt->nalbuffer[rt->nallen++] = 0xe1;  // ???
+		//OBS:
+		//04000000[000036]09/01000000  @12
+		//17000000000164000dffe1 @22
+		//   00226764000dac2ca504021b016a04040a800001f40000753070000186a000c353779705
+		//    01
+		//   000468eb8f2c
+
+		//
+		//04000000[00002b]09/01000000
+		//17000000000164000d01
+		// 01 0017 674200298de0804260289000003e800007530092142f80
+		// 01 0004 68ce3a80
+
+		// With exp
+		//0400000000002a0901000000
+		//17000000000164 (prfile idc)/00profile-compat 0d level-idc
+		//010017674200298de0804260289000003e800007530092142f80
+		//01000468ce3a80
+
+		//ME (new):
+		//04000000[00002b]0901/000000
+		//170000000001640022ffe1
+		//  0017674200298de0804260289000003e800007530092142f80
+		//  01000468ce3a80
+
+		// 17 00   data[1...]   cfgVer, profileIdc, profileCompat, levelIdc
+		// 17 00    000000         01        64          00           0d       ffe1
+
+		//ME (old):
+		//04000000[00002b]09/01000000  @12
+		//170000000000000022ffe1 @
+		//   0017674200298de0804260289000003e800007530092142f80
+		//    01
+		//   000468ce3a80
+
+		// NEW NEW 
+		//04000000[00002b]09/01000000
+		//17000000000164000d0101
+		//   0017674200298de0804260289000003e800007530092142f80
+		// 01000468ce3a80
+
+		//04000000[00002b]09/01000000
+		//17000000000164000d0101
+		//	0017674200298de0804260289000003e800007530092142f8001000468ce3a80
+
+
+		//OBS (Copy)
+		//04000000[000036]09/01000000  @12
+		//17000000000164000dffe1 @22
+		//   00226764000dac2ca504021b016a04040a800001f40000753070000186a000c353779705
+		//    01
+		//   000468eb8f2c
+
+
+		//https://blog.kundansingh.com/2012/01/translating-h264-between-flash-player.html
+
+		printf( "NALLLEN -5: %d\n", rt->nallen );
+
+//		int i;
+//		for( i = 0; i < rt->nallen; i++ )
+//			printf( "%02x ", rt->nalbuffer[i] );
+		rt->nalbuffer[rt->nallen++] = 0xff;  // length-flag  (was 0xff) should be 0x01
+			//WARNING Setting the above to 0x01 from 0xff causes NAL errors all over the place
+		rt->nalbuffer[rt->nallen++] = 0xe1;  // sps-count    (was 0xe1) should be 0x01
 		rt->bookmarksize = rt->nallen;
 		rt->nalbuffer[rt->nallen++] = 0x00; // will become size of immediate.
 		rt->nalbuffer[rt->nallen++] = 0x00; // will become size of immediate.
@@ -690,6 +803,12 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 	}
 	if( len == -4 )
 	{
+		printf( "NALLLEN -4: %d\n", rt->nallen );
+
+		int i;
+		for( i = 0; i < rt->nallen; i++ )
+			printf( "%02x ", rt->nalbuffer[i] );
+
 		rt->nalbuffer[rt->bookmarksize+0] = (rt->nallen - rt->bookmarksize - 2)>>8;
 		rt->nalbuffer[rt->bookmarksize+1] = (rt->nallen - rt->bookmarksize - 2)>>0;
 		rt->nalbuffer[rt->nallen++] = 0x01;
@@ -704,14 +823,33 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 		{
 			int nallen = rt->nallen;
 			uint8_t * nb = rt->nalbuffer;
+			nallen+= 4;
 
 			//Round up
 			//nallen = (nallen+3) & 0xffffffc;
 			int nalrep = nallen-12; //Was 9 //+1 = for the data type code.
 
+
+			static uint32_t whichtsa = 0;
+			static int nrframes = 0;
+			whichtsa=dNow*999;
+			nrframes++;
+			
+#if 1
+			int tsa = 0;
+			// This is TOTALLY BOGUS, but tricks things into delivering things ASAP.
+			if( whichtsa == 1) tsa = 0x00;
+			if( whichtsa == 2) tsa = 0x10;
+			if( whichtsa == 3) tsa = 0x53;
+			if( whichtsa == 4) { tsa = 0x21; whichtsa = 0; }
+#endif
+
 			// See flv-mux.c `flv_video(...)`
-
-
+			nb[0] = 0x04;
+			nb[1] = 0>>16;
+			nb[2] = 0>>8;
+			nb[3] = whichtsa; // timestamp (fudged to keep things urgent!)
+			//printf( "%d\n", whichtsa&0xff );
 			nb[4] = nalrep>>16;
 			nb[5] = nalrep>>8;
 			nb[6] = nalrep>>0;
@@ -725,20 +863,21 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 				//0x27 = B- or P-frame
 			nb[12] = (len == -6)?0x27:0x17; //Data type code.
 
-			static int whichtsa = 0;
-			whichtsa++;
-			int tsa = 0;
-			// Determined experimentally.
-			if( whichtsa == 1) tsa = 0x00;
-			if( whichtsa == 2) tsa = 0x10;
-			if( whichtsa == 3) tsa = 0x53;
-			if( whichtsa == 4) { tsa = 0x21; whichtsa = 0; }
-
 			int encaplen = nallen-21;
-			nb[13] = (len == -2 || len == -6)?1:0; //0: is_header, 1: !is_header
-			nb[14] = 0; //Timestamp 
-			nb[15] = 0; //Timestamp 
-			nb[16] = tsa; //Timestamp 
+			//0: is_header  (configuration data)
+			//1: !is_header (video data)
+			nb[13] = (len == -2 || len == -6)?1:0; 
+
+			nb[14] = 0>>16; //Timestamp 
+			nb[15] = 0>>8; //Timestamp 
+			
+			//TRICKY: We "trick" the VRCDN servers to think our stream is online, then
+			// Once they know no better, we just set all timestamps to 0 so it just 
+			// sends the packets out without buffering.
+			if( nrframes < 100 )
+				nb[16] = whichtsa>>2; //Timestamp 
+			else
+				nb[16] = 0;
 			nb[17] = 0;
 			nb[18] = encaplen>>16;
 			nb[19] = encaplen>>8;
@@ -746,15 +885,32 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 
 			if( len == -3 )
 			{
+				nb[17] = 1;  //Version
+				nb[18] = 0x42; //Profile (IDC) (was 64), now 42 (baseline)
+				nb[19] = 0x00; //Profile (compat) (was 0x00)
+				nb[20] = 10; //Profile (level-icd) (was 0x0d)
 				rt->nalbuffer[rt->bookmarksize+0] = (rt->nallen - rt->bookmarksize - 2)>>8;
 				rt->nalbuffer[rt->bookmarksize+1] = (rt->nallen - rt->bookmarksize - 2)>>0;
+				//printf( "NALLEN -3: %d - %d - 2 = %d @ %d\n", rt->nallen, rt->bookmarksize, rt->nallen - rt->bookmarksize - 2, rt->bookmarksize );
+
+				// Ram-jam in a copy from OBS.
+			//	uint8_t * nbo = nb;
+			//	const char nbB [] = { 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x09, 0x01, 0x00, 0x00, 0x00, 0x17, 0x00, 0x00, 0x00, 0x00, 0x01, 0x64, 0x00, 0x0d, 0xff, 0xe1, 0x00, 0x22, 0x67, 0x64, 0x00, 0x0d, 0xac, 0x2c, 0xa5, 0x04, 0x02, 0x1b, 0x01, 0x6a, 0x04, 0x04, 0x0a, 0x80, 0x00, 0x01, 0xf4, 0x00, 0x00, 0x75, 0x30, 0x70, 0x00, 0x01, 0x86, 0xa0, 0x00, 0xc3, 0x53, 0x77, 0x97, 0x05, 0x01, 0x00, 0x04, 0x68, 0xeb, 0x8f, 0x2c };
+			//	memcpy( nbo, nbB, sizeof( nbB ) );
+			//	nallen = sizeof( nbB );
 			}
+
 
 
 			int ts = 0;
 			int tosend = nallen + ts;
-			printf( "Sending total len: %d / nallen %d\n", nallen+ts, nallen );
+/*
+			int i;
+			for( i = 0; i < tosend; i++ )
+				printf( "%02x", nb[i] );
+	*/		
 			int ret = send( rt->sock, nb, tosend, MSG_NOSIGNAL );
+			printf( "Sending total len: %d / nallen %d => %d\n", nallen+ts, nallen, ret );
 			if( ret != tosend )
 			{
 				rt->nallen = 0;

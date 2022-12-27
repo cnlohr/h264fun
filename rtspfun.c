@@ -1,13 +1,19 @@
-#include "rtspfun.h"
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
+#if defined(WINDOWS) || defined(WIN32) || defined( _WIN32 ) || defined( WIN64 )
+#include <winsock2.h>
+#define MSG_NOSIGNAL      0x200
+#else
 #include <netdb.h>
 #include <sys/types.h> 
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#endif
+#include "os_generic.h"
+#include "rtspfun.h"
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
 #include <string.h>
 #include <errno.h>
 
@@ -95,7 +101,7 @@ void * GThread( void * v )
 	struct timeval timeoutrx;
 	timeoutrx.tv_sec = 0;
 	timeoutrx.tv_usec = conn->rxtimedelay; //10ms
-    if( setsockopt( sock, SOL_SOCKET, SO_RCVTIMEO, &timeoutrx, sizeof timeoutrx ) < 0 )
+    if( setsockopt( sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeoutrx, sizeof timeoutrx ) < 0 )
 	{
         fprintf( stderr, "Error, couldn't set timeout on rx socket.\n" );
 		goto closeconn;
@@ -280,8 +286,12 @@ a=type:broadcast\n\
 m=video 0 RTP/AVP 96\n\
 b=RR:0\n\
 a=rtpmap:96 H264/90000\n\
-a=fmtp:96 packetization-mode=2;profile-level-id=420029;sprop-parameter-sets=Z0IAKY3gQAgmAovAAAD6AAAdTAJIUL4=,aM46gA==;\n\
+a=cliprect:0,0,256,128\n\
+a=fmtp:96 packetization-mode=2;profile-level-id=42e01f;sprop-parameter-sets=Z0IAKY3gQAgmAovAAAD6AAAdTAJIUL4=,aM46gA==;\n\
 ";
+
+//XXX TODO: sprop-parameter-sets should be pps/sps of encoded stream.
+
 
 //a=control:rtsp://127.0.0.1:8554/trackID=0\n\
 
@@ -424,6 +434,12 @@ closeconn:
 //returns 0 on success, otherwise negative.
 int StartRTSPFun( struct RTSPSystem * system, int port, RTSPControl ctrl, int max_connections )
 {
+#if defined(WINDOWS) || defined(WIN32) || defined( _WIN32 ) || defined( WIN64 )
+    WORD wVersionRequested = MAKEWORD(2, 2);
+	WSADATA wsaData;
+	WSAStartup(wVersionRequested, &wsaData);
+#endif
+
 	if( !system )
 	{
 		return -9;

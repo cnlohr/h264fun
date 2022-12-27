@@ -94,7 +94,7 @@ int H264FUNPREFIX H264FunInit( H264Funzie * funzie, int w, int h, int slices, H2
 
 void H264FUNPREFIX H264FunAddMB( H264Funzie * funzie, int x, int y, uint8_t * data, H264FunPayload pl );
 
-void H264FUNPREFIX H264SendSPSPPS( H264Funzie * funzie );
+void H264FUNPREFIX H264SendSPSPPS( H264Funzie * funzie, int emissionmode );
 
 void H264FUNPREFIX H264FakeIFrame( H264Funzie * funzie );
 

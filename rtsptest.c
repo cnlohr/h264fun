@@ -7,10 +7,7 @@
 #define _RTSPFUN_H_IMPLEMENTATION
 #include "rtspfun.h"
 
-
-
 #include "os_generic.h"
-
 
 int akey;
 
@@ -25,6 +22,7 @@ int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage e
 {
 	int r, bk;
 	struct OpaqueDemo * demo = (struct OpaqueDemo*)conn->opaque;
+	printf( "EVENT: %d\n", event );
 	switch( event )
 	{
 	case RTSP_INIT:
@@ -40,7 +38,7 @@ int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage e
 		//{ H2FUN_TIME_ENABLE, 0 },
 		//const H264ConfigParam params[] = { { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 60000 }, { H2FUN_TERMINATOR, 0 } };
 		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 0 }, { H2FUN_TERMINATOR, 0 } }; // Disable timing.  (Makes it so RTSP determines timing)
-		r = H264FunInit( &demo->funzie, 512, 512, 1, RTSPSend, conn, params );
+		r = H264FunInit( &demo->funzie, 256, 128, 1, RTSPSend, conn, params );
 		if( !r )
 			demo->frameno = 0;
 		return r;
@@ -58,6 +56,7 @@ int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage e
 
 	case RTSP_TICK:
 	{
+		double dNow = OGGetAbsoluteTime();
 		const int nr_to_send_per_frame = 2;
 		// emitting
 		for( bk = 0; bk < nr_to_send_per_frame; bk++ )
@@ -93,13 +92,6 @@ int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage e
 			};
 
 			{
-				struct timeval tv;
-				time_t t;
-				struct tm *info;
-
-				gettimeofday(&tv, NULL);
-				t = tv.tv_sec;
-				info = localtime(&t);
 				char towrite[100];
 				int cx, cy;
 				int writepos = 0;
@@ -110,16 +102,16 @@ int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage e
 					if( cy == 0 )
 					{
 						if(cx < 2)
-							pxls = font[(info->tm_min/((cx==0)?10:1))%10];
+							pxls = font[(((int)(dNow*100))/((cx==0)?10:1))%10];
 						else
-							pxls = font[(info->tm_sec/((cx==2)?10:1))%10];
+							pxls = font[(((int)dNow)/((cx==2)?10:1))%10];
 					}
 					else if( cy == 1 )
 					{
 						int tens = 1;
 						int tc = cx;
 						while( tc != 3) { tc++; tens*=10; }
-						pxls = font[(tv.tv_usec/100/tens)%10];
+						pxls = font[(((int)(dNow*100000))/100/tens)%10];
 					}
 					int px, py;
 					for( py = 0; py < 8; py++ )
