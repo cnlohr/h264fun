@@ -321,61 +321,6 @@ int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264F
 	return 0;
 }
 
-void H264FUNPREFIX H264FakeIFrame( H264Funzie * fun )
-{
-	int slice = 0;
-	fun->frameno++;
-	for( slice = 0; slice < fun->slices; slice++ )
-	{
-		//slice_layer_without_partitioning_rbsp()
-		H2EmitNAL( fun );
-		int slicestride = fun->mbw*fun->mbh/fun->slices;
-
-		//NALU "5 = coded slice of an IDR picture"   nal_ref_idc = 3, nal_unit_type = 5 
-		// IDR = A coded picture containing only slices with I or SI slice types
-		H2EmitU( fun, BuildNALU( 3, 5 ), 8 ); 
-
-		// slice_header();
-		H2EmitUE( fun, slice*slicestride );    //first_mb_in_slice 0 = new frame.
-		H2EmitUE( fun, 7 );    //I-slice only. (slice_type == 7 (I slice))
-		H2EmitUE( fun, 0 );    //pic_parameter_set_id = 0 (referencing pps 0)
-		H2EmitU( fun, fun->frameno, 16 );	//frame_num
-		H2EmitUE( fun, 0 ); // idr_pic_id
-		if( fun->cnt_type == 0 )
-		{
-			//pic_order_cnt_type => 0
-			H2EmitU( fun, slice, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)  (TODO: REVISIT)?
-		}
-
-		//ref_pic_list_reordering() -> Nothing
-		//dec_ref_pic_marking(()
-			H2EmitU( fun, 0, 1 ); // no_output_of_prior_pics_flag = 0
-			H2EmitU( fun, 0, 1 ); // long_term_reference_flag = 0
-		H2EmitSE( fun, 0 ); // slice_qp_delta 
-
-		int k;
-		for( k = 0; k < 1; k++ )
-		{
-			//TODO: SEE: ff_h264_decode_mb_cavlc
-
-			//XXX XXX BIG WARNING: 
-			//  We are actually violating H264 here, since we 
-			//  don't fill out any more than the first MB of a given slice.
-
-			// this is a "macroblock_layer"
-			//Send an I_PCM macroblock, lossless.
-			H2EmitUE( fun, 25 ); //I_PCM=25 (mb_type)
-			H2EmitFlush( fun );
-			
-			fun->datacb( fun->opaque, H2mb_dark, sizeof( H2mb_dark ) );
-		}
-		H2EmitU( fun, 1, 1 ); // Stop bit from rbsp_trailing_bits()
-		H2EmitFlush( fun );
-	}
-	fun->datacb( fun->opaque, 0, -2 );
-}
-
-
 void H264FUNPREFIX H264FunAddMB( H264Funzie * fun, int x, int y, uint8_t * data, H264FunPayload pl )
 {
 	if( (unsigned)x >= (unsigned)fun->mbw || (unsigned)y >= (unsigned)fun->mbh )
@@ -618,7 +563,63 @@ int H264FUNPREFIX H264FunEmitIFrame( H264Funzie * fun )
 	}
 
 	fun->datacb( fun->opaque, 0, -2 );
-	printf( "ICT: %d\n", ict );
+}
+
+
+
+void H264FUNPREFIX H264FakeIFrame( H264Funzie * fun )
+{
+	int slice = 0;
+	fun->frameno++;
+	for( slice = 0; slice < fun->slices; slice++ )
+	{
+		//slice_layer_without_partitioning_rbsp()
+		H2EmitNAL( fun );
+		int slicestride = fun->mbw*fun->mbh/fun->slices;
+
+		//NALU "5 = coded slice of an IDR picture"   nal_ref_idc = 3, nal_unit_type = 5 
+		// IDR = A coded picture containing only slices with I or SI slice types
+		H2EmitU( fun, BuildNALU( 3, 5 ), 8 ); 
+
+		// slice_header();
+		H2EmitUE( fun, slice*slicestride );    //first_mb_in_slice 0 = new frame.
+		H2EmitUE( fun, 7 );    //I-slice only. (slice_type == 7 (I slice))
+		H2EmitUE( fun, 0 );    //pic_parameter_set_id = 0 (referencing pps 0)
+		H2EmitU( fun, fun->frameno, 16 );	//frame_num
+		H2EmitUE( fun, 0 ); // idr_pic_id
+		if( fun->cnt_type == 0 )
+		{
+			//pic_order_cnt_type => 0
+			H2EmitU( fun, slice, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)  (TODO: REVISIT)?
+		}
+
+		//ref_pic_list_reordering() -> Nothing
+		//dec_ref_pic_marking(()
+			H2EmitU( fun, 0, 1 ); // no_output_of_prior_pics_flag = 0
+			H2EmitU( fun, 0, 1 ); // long_term_reference_flag = 0
+		H2EmitSE( fun, 0 ); // slice_qp_delta 
+
+		int k;
+		// NEW NOTE: Most systems seem tolerant of a zero-macroblock-iframe.
+		for( k = 0; k < 0; k++ )
+		{
+			//TODO: SEE: ff_h264_decode_mb_cavlc
+
+			//XXX XXX BIG WARNING: 
+			//  We are actually violating H264 here, since we 
+			//  don't fill out any more than the first MB of a given slice.
+
+			// this is a "macroblock_layer"
+			//Send an I_PCM macroblock, lossless.
+			H2EmitUE( fun, 25 ); //I_PCM=25 (mb_type)
+			H2EmitFlush( fun );
+			
+			fun->datacb( fun->opaque, H2mb_dark, sizeof( H2mb_dark ) );
+		}
+		H2EmitU( fun, 1, 1 ); // Stop bit from rbsp_trailing_bits()
+		H2EmitFlush( fun );
+	}
+	fun->datacb( fun->opaque, 0, -2 );
 }
 
 

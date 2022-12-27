@@ -69,8 +69,8 @@ int main()
 
 	H264Funzie funzie;
 	{
-		int w = 128;
-		int h = 64;
+		int w = 256;
+		int h = 128;
 		g_mbw = w/16;
 		g_mbh = h/16;
 		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 1 }, { H2FUN_TIME_NUMERATOR, 500 }, { H2FUN_TIME_DENOMINATOR, 60000 }, { H2FUN_TERMINATOR, 0 } };
@@ -84,23 +84,23 @@ int main()
 
 	usleep(500000);
 	int frameno = 0;
-
+	int cursor;
 	while( 1 )
 	{
 		int bk;
 		frameno++;
 
-		if( ( frameno % 200 ) == 1 )
+		if( ( frameno % 100 ) == 1 )
 		{
 			H264FakeIFrame( &funzie );
 			//H264FunEmitIFrame( &funzie );
 		}
 		else
 		{
-			for( bk = 0; bk < 2; bk++ )
+			for( bk = 0; bk < 10; bk++ )
 			{
-				int mbx = frameno%g_mbw;//rand()%(funzie.w/16);
-				int mby = (frameno/g_mbw)%g_mbh;//rand()%(funzie.h/16);
+				int mbx = 0;
+				int mby = 0;
 
 				int basecolor = akey?254:1;
 				uint8_t * buffer = malloc( 256 );
@@ -109,6 +109,12 @@ int main()
 				{
 					mbx = mby = 0;
 					basecolor = 1;
+				}
+				else
+				{
+					mbx = cursor%g_mbw;
+					mby = (cursor/g_mbw)%g_mbh;
+					cursor++;
 				}
 
 				const uint16_t font[] = //3 px wide, buffer to 4; 5 px high, buffer to 8.
@@ -173,7 +179,7 @@ int main()
 			H264FunEmitFrame( &funzie );
 			//H264FunEmitIFrame( &funzie );
 		}
-		OGUSleep( 30000 );
+		OGUSleep( 10000 );
 	}
 
 	return 0;

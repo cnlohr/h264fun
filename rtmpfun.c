@@ -665,6 +665,7 @@ void RTMPClose( struct RTMPSession * rt )
 
 int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 {
+	double dNow = OGGetAbsoluteTime();
 /*
 	static FILE * flog;
 	if( !flog ) flog = fopen( "testout.h264", "wb" );
@@ -816,8 +817,10 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 			int nalrep = nallen-12; //Was 9 //+1 = for the data type code.
 
 
-			static int whichtsa = 0;
-			whichtsa+=20;
+			static uint32_t whichtsa = 0;
+			static int nrframes = 0;
+			whichtsa=dNow*1000;
+			nrframes++;
 			
 #if 1
 			int tsa = 0;
@@ -832,7 +835,8 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 			nb[0] = 0x04;
 			nb[1] = 0>>16;
 			nb[2] = 0>>8;
-			nb[3] = whichtsa; // timestamp.
+			nb[3] = whichtsa*1.1; // timestamp (fudged to keep things urgent!)
+			//printf( "%d\n", whichtsa&0xff );
 			nb[4] = nalrep>>16;
 			nb[5] = nalrep>>8;
 			nb[6] = nalrep>>0;
@@ -853,7 +857,14 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 
 			nb[14] = 0>>16; //Timestamp 
 			nb[15] = 0>>8; //Timestamp 
-			nb[16] = whichtsa; //Timestamp 
+			
+			//TRICKY: We "trick" the VRCDN servers to think our stream is online, then
+			// Once they know no better, we just set all timestamps to 0 so it just 
+			// sends the packets out without buffering.
+			if( nrframes < 100 )
+				nb[16] = whichtsa>>2; //Timestamp 
+			else
+				nb[16] = 0;
 			nb[17] = 0;
 			nb[18] = encaplen>>16;
 			nb[19] = encaplen>>8;
