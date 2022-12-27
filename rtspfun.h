@@ -6,7 +6,6 @@
 #define _RTSPFUN_H
 
 
-#include "os_generic.h"
 #include <stdint.h>
 
 struct RTSPSystem;
@@ -29,7 +28,7 @@ struct RTSPConnection
 	int connected;
 	int seqid;
 	int rxmode;
-	og_thread_t thread;
+	void * thread;
 	struct RTSPSystem * system;
 	int  rxtimedelay; //Implicitly controls the frame rate.
 	char working_url[1024];

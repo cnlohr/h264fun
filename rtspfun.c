@@ -1,13 +1,19 @@
-#include "rtspfun.h"
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
+#if defined(WINDOWS) || defined(WIN32) || defined( _WIN32 ) || defined( WIN64 )
+#include <winsock2.h>
+#define MSG_NOSIGNAL      0x200
+#else
 #include <netdb.h>
 #include <sys/types.h> 
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#endif
+#include "os_generic.h"
+#include "rtspfun.h"
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
 #include <string.h>
 #include <errno.h>
 
@@ -95,7 +101,7 @@ void * GThread( void * v )
 	struct timeval timeoutrx;
 	timeoutrx.tv_sec = 0;
 	timeoutrx.tv_usec = conn->rxtimedelay; //10ms
-    if( setsockopt( sock, SOL_SOCKET, SO_RCVTIMEO, &timeoutrx, sizeof timeoutrx ) < 0 )
+    if( setsockopt( sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeoutrx, sizeof timeoutrx ) < 0 )
 	{
         fprintf( stderr, "Error, couldn't set timeout on rx socket.\n" );
 		goto closeconn;
@@ -428,6 +434,12 @@ closeconn:
 //returns 0 on success, otherwise negative.
 int StartRTSPFun( struct RTSPSystem * system, int port, RTSPControl ctrl, int max_connections )
 {
+#if defined(WINDOWS) || defined(WIN32) || defined( _WIN32 ) || defined( WIN64 )
+    WORD wVersionRequested = MAKEWORD(2, 2);
+	WSADATA wsaData;
+	WSAStartup(wVersionRequested, &wsaData);
+#endif
+
 	if( !system )
 	{
 		return -9;

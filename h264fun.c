@@ -1,6 +1,7 @@
 #include "h264fun.h"
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 static uint8_t H2mb_dark[384];
 
@@ -592,7 +593,7 @@ void H264FUNPREFIX H264FakeIFrame( H264Funzie * fun )
 			//pic_order_cnt_type => 0
 			H2EmitU( fun, slice, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)  (TODO: REVISIT)?
 		}
-
+printf( "==================================\n" );
 		//ref_pic_list_reordering() -> Nothing
 		//dec_ref_pic_marking(()
 			H2EmitU( fun, 0, 1 ); // no_output_of_prior_pics_flag = 0
@@ -601,7 +602,7 @@ void H264FUNPREFIX H264FakeIFrame( H264Funzie * fun )
 
 		int k;
 		// NEW NOTE: Most systems seem tolerant of a zero-macroblock-iframe.
-		for( k = 0; k < 0; k++ )
+		for( k = 0; k < 1; k++ )
 		{
 			//TODO: SEE: ff_h264_decode_mb_cavlc
 

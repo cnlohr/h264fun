@@ -1,13 +1,21 @@
-#include "rtmpfun.h"
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
+#if defined(WINDOWS) || defined(WIN32) || defined( _WIN32 ) || defined( WIN64 )
+#include <winsock2.h>
+#undef MSG_NOSIGNAL
+#define MSG_NOSIGNAL      0x000
+#define MSG_MORE MSG_PARTIAL 
+#else
 #include <netdb.h>
 #include <sys/types.h> 
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#endif
+
+#include "rtmpfun.h"
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
 #include <string.h>
 #include <errno.h>
 
@@ -166,6 +174,11 @@ static void * RTMPListenThreadFunction( void * v )
 // Function returns upon successful connection or failure.
 int InitRTMPConnection( struct RTMPSession * rt, void * opaque, const char * uri, const char * streamkey )
 {
+#if defined(WINDOWS) || defined(WIN32) || defined( _WIN32 ) || defined( WIN64 )
+    WORD wVersionRequested = MAKEWORD(2, 2);
+	WSADATA wsaData;
+	WSAStartup(wVersionRequested, &wsaData);
+#endif
 	int urilen = strlen( uri );
 	if( urilen < 8 || strncmp( uri, "rtmp://", 7 ) != 0 )
 	{
@@ -220,7 +233,7 @@ int InitRTMPConnection( struct RTMPSession * rt, void * opaque, const char * uri
 		rmt_addr.sin_family = AF_INET;
 		rmt_addr.sin_port = htons( portno );
 		rmt_addr.sin_addr = *((struct in_addr *)he->h_addr);
-		bzero(&(rmt_addr.sin_zero), 8);
+		memset(&(rmt_addr.sin_zero), 0, sizeof(rmt_addr.sin_zero));
 
 		if (connect( rt->sock, (struct sockaddr *)&rmt_addr, sizeof( rmt_addr ) ) < 0 )
 		{
@@ -819,7 +832,7 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 
 			static uint32_t whichtsa = 0;
 			static int nrframes = 0;
-			whichtsa=dNow*1000;
+			whichtsa=dNow*999;
 			nrframes++;
 			
 #if 1
@@ -830,12 +843,12 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 			if( whichtsa == 3) tsa = 0x53;
 			if( whichtsa == 4) { tsa = 0x21; whichtsa = 0; }
 #endif
-			
+
 			// See flv-mux.c `flv_video(...)`
 			nb[0] = 0x04;
 			nb[1] = 0>>16;
 			nb[2] = 0>>8;
-			nb[3] = whichtsa*1.1; // timestamp (fudged to keep things urgent!)
+			nb[3] = whichtsa; // timestamp (fudged to keep things urgent!)
 			//printf( "%d\n", whichtsa&0xff );
 			nb[4] = nalrep>>16;
 			nb[5] = nalrep>>8;
@@ -896,8 +909,8 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 			for( i = 0; i < tosend; i++ )
 				printf( "%02x", nb[i] );
 	*/		
-			printf( "Sending total len: %d / nallen %d\n", nallen+ts, nallen );
 			int ret = send( rt->sock, nb, tosend, MSG_NOSIGNAL );
+			printf( "Sending total len: %d / nallen %d => %d\n", nallen+ts, nallen, ret );
 			if( ret != tosend )
 			{
 				rt->nallen = 0;
