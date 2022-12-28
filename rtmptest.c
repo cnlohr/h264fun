@@ -73,11 +73,11 @@ int main()
 
 	H264Funzie funzie;
 	{
-		int w = 256;
+		int w = 128;
 		int h = 128;
 		g_mbw = w/16;
 		g_mbh = h/16;
-		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 0 },  { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 1000 }, { H2FUN_TERMINATOR, 0 } };
+		const H264ConfigParam params[] = { /*{H2FUN_CNT_TYPE, 2}, */{ H2FUN_TIME_ENABLE, 1 },  { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 30000 }, { H2FUN_TERMINATOR, 0 } };
 		r = H264FunInit( &funzie, w, h , 1, (H264FunData)RTMPSend, &rtmp, params );
 		if( r )
 		{
@@ -93,17 +93,17 @@ int main()
 	{
 		int bk;
 		frameno++;
-
-		if( ( frameno % 50 ) == 1 )
+/*
+		if( ( frameno % 200 ) == 1 )
 		{
 			H264FakeIFrame( &funzie );
 			//H264FunEmitIFrame( &funzie );
 		}
-		else
+		else */
 		{
 			double dNow = OGGetAbsoluteTime();
 			
-			for( bk = 0; bk < 2; bk++ )
+			for( bk = 0; bk < g_mbw*g_mbh; bk++ )
 			{
 				int mbx = 0;
 				int mby = 0;
@@ -111,18 +111,20 @@ int main()
 				int basecolor = akey?254:1;
 				uint8_t * buffer = malloc( 256 );
 				memset( buffer, 0xff, 256 );
+				#if 0
 				if( bk == 0 )
 				{
 					mbx = mby = 0;
 				}
 				else
+				#endif
 				{
 					mbx = cursor%g_mbw;
 					mby = (cursor/g_mbw)%g_mbh;
 					cursor++;
 				}
-				mbx = bk;
-				mby = 0;
+				//mbx = bk;
+				//mby = 0;
 
 				const uint16_t font[] = //3 px wide, buffer to 4; 5 px high, buffer to 8.
 				{
@@ -171,15 +173,30 @@ int main()
 						{
 							int color = ((pxls>>(14-(py*3-3+px)))&1)?(255-basecolor):basecolor;
 							if( px == 3 ) color = basecolor;
+							
 							int pos = (py+cy*8)*16+px+cx*4;
+						
+							int rpx = px+cx*4 + mbx*16;
+							int rpy = py+cy*8 + mby*16;
+							
+							if( mbx == 0 && mby == 0)
+							{
+								color = rpx+rpy*16;
+							}
+							if( mbx == 1 && mby == 0)
+							{
+								int chat = rpx/8+rpy/8;
+								color = (chat&1)?0xff:0x00;
+							}
+							
 							buffer[pos] = color;
 						}
 					}
 				}
 				H264FunAddMB( &funzie, mbx,  mby, buffer, H264FUN_PAYLOAD_LUMA_ONLY );
 			}
-			H264FunEmitFrame( &funzie );
-			//H264FunEmitIFrame( &funzie );
+			//H264FunEmitFrame( &funzie );
+			H264FunEmitIFrame( &funzie );
 		}
 		//OGUSleep( 16000 );
 		static double dly;

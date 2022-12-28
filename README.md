@@ -14,3 +14,5 @@ docker run --rm -it --network=host -e RTSP_LOGLEVEL=debug aler9/rtsp-simple-serv
 ```
 
 
+This is a pretty helpful thing for spot-checking your h.264 streams:
+https://mradionov.github.io/h264-bitstream-viewer/

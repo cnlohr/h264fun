@@ -346,7 +346,7 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 	uint8_t cmd_buffer[1536];
 	int cmd_place = 0, header_place = 0;
 	header_place = cmd_place; rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 2, 0x01, 0 ); //Set Chunk Size
-	rtmpp_add_raw_uint32( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 4096 );
+	rtmpp_add_raw_uint32( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 65535 );
 	rtmpp_finish_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), header_place );
 
 	if( cmd_place == sizeof( cmd_buffer ) )
@@ -510,8 +510,6 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 	OGUSleep(800000);
 
 
-
-
 	cmd_place = 0;
 	header_place = cmd_place; rtmpp_add_header( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0x04, 0x12, 1 ); //AMF0 Command for metadata.
 	rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "@setDataFrame" );
@@ -523,13 +521,13 @@ const char * OrigCode = "0057b48600000000f691af67102d5101eaa3bd072f1b0b5d496faa0
 		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "fileSize" );
 		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 0 );
 		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "width" );
-		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 32 );
+		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 128 );
 		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "height" );
-		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 32 );
+		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 64 );
 		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "videocodecid" );
 		rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "avc1" );//rtmpp_add_string( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "avc1" );
 		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "videodatarate" );
-		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 200 );
+		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 2000 );
 		rtmpp_add_property( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), "framerate" );
 		rtmpp_add_number( cmd_buffer, &cmd_place, sizeof( cmd_buffer ), 30 );
 
@@ -685,14 +683,13 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 	if( len == -1 )
 	{
 		fwrite( "\x00\x00\x00\x01", 4, 1, flog );
-		printf( "***NAL***\n" );
 	}
 	else if( len > 0 )
 	{
-		printf( "%d\n", len );
 		fwrite( buffer, len, 1, flog );
 	}
-
+*/
+/*
 	if( len == 1 )
 	{
 		printf( "EMIT: %02x\n", buffer[0] );
@@ -700,9 +697,8 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 	else
 	{
 		printf( "RTMP SEND %p %d\n", buffer, len );
-	}
+	}*/
 
-*/
 
 	if( len == -1 )
 	{
@@ -823,7 +819,8 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 		{
 			int nallen = rt->nallen;
 			uint8_t * nb = rt->nalbuffer;
-			nallen+= 4;
+			//memset( nb + nallen, 0, 4 );
+			//nallen+=4;
 
 			//Round up
 			//nallen = (nallen+3) & 0xffffffc;
@@ -886,9 +883,9 @@ int RTMPSend( struct RTMPSession * rt, uint8_t * buffer, int len )
 			if( len == -3 )
 			{
 				nb[17] = 1;  //Version
-				nb[18] = 0x42; //Profile (IDC) (was 64), now 42 (baseline)
+				nb[18] = 0x64; //Profile (IDC) (was 64), now 42 (baseline)
 				nb[19] = 0x00; //Profile (compat) (was 0x00)
-				nb[20] = 10; //Profile (level-icd) (was 0x0d)
+				nb[20] = 0x0d; //Profile (level-icd) (was 0x0d)
 				rt->nalbuffer[rt->bookmarksize+0] = (rt->nallen - rt->bookmarksize - 2)>>8;
 				rt->nalbuffer[rt->bookmarksize+1] = (rt->nallen - rt->bookmarksize - 2)>>0;
 				//printf( "NALLEN -3: %d - %d - 2 = %d @ %d\n", rt->nallen, rt->bookmarksize, rt->nallen - rt->bookmarksize - 2, rt->bookmarksize );

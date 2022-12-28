@@ -170,17 +170,19 @@ void H264FUNPREFIX H264SendSPSPPS( H264Funzie * fun, int emissionmode )
 	H2EmitU( fun, 1, 1 ); // frame_mbs_only_flag = 1 //We will not to field/frame encoding.
 	H2EmitU( fun, 0, 1 ); // direct_8x8_inference_flag = 0 // Used for B slices. We will not send B slices.
 	H2EmitU( fun, 0, 1 ); // frame_cropping_flag = 0
-	H2EmitU( fun, 0, 1 ); // vui_parameters_present_flag = 0
+	H2EmitU( fun, 1, 1 ); // vui_parameters_present_flag = 0
+
 		//vui_parameters()
 		H2EmitU( fun, 1, 1 ); // aspect_ratio_info_present_flag = 1
-			H2EmitU( fun, 255, 8 ); // 1:1 Square = 1; 255 = Extended_SAR
+			H2EmitU( fun, 255, 8 ); // 1:1 Square = 1; 255 = Extended_SAR; MUSTARDTIGER commented that some implementations want sar_width/height, so I can add it this way.
 			// In spite of aspect_ratio_idc != 255, parsers seem to want sar_width & sar_height
 			// So, instead we're just going to say we use a custom SAR.
 			H2EmitU( fun, 16, 16 ); // sar_width
 			H2EmitU( fun, 16, 16 ); // sar_height
+
 		H2EmitU( fun, 0, 1 ); // overscan_info_present_flag = 0
 		H2EmitU( fun, 1, 1 ); // video_signal_type_present_flag = 1
-			H2EmitU( fun, 0, 3 ); //video_format
+			H2EmitU( fun, 0, 3 ); //video_format 0 = component.
 			H2EmitU( fun, 1, 1 ); //video_full_range_flag
 			H2EmitU( fun, 0, 1 ); //colour_description_present_flag = 0
 		H2EmitU( fun, 0, 1 ); // chroma_loc_info_present_flag = 0
@@ -318,7 +320,6 @@ int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264F
 	
 	fun->datacb( fun->opaque, 0, -2 );
 
-	printf( "=======================================================================\n" );
 	return 0;
 }
 
@@ -593,7 +594,7 @@ void H264FUNPREFIX H264FakeIFrame( H264Funzie * fun )
 			//pic_order_cnt_type => 0
 			H2EmitU( fun, slice, 4 ); //pic_order_cnt_lsb (log2_max_pic_order_cnt_lsb_minus4+4)  (TODO: REVISIT)?
 		}
-printf( "==================================\n" );
+
 		//ref_pic_list_reordering() -> Nothing
 		//dec_ref_pic_marking(()
 			H2EmitU( fun, 0, 1 ); // no_output_of_prior_pics_flag = 0
@@ -602,6 +603,7 @@ printf( "==================================\n" );
 
 		int k;
 		// NEW NOTE: Most systems seem tolerant of a zero-macroblock-iframe.
+		// If you need a non-zero-macroblock, set k < 1
 		for( k = 0; k < 1; k++ )
 		{
 			//TODO: SEE: ff_h264_decode_mb_cavlc
