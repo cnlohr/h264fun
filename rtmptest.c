@@ -1,20 +1,16 @@
-#if defined(WINDOWS) || defined(WIN32) || defined( _WIN32 ) || defined( WIN64 )
-#include <winsock2.h>
-#define MSG_NOSIGNAL      0x200
-#else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#endif
+//NOT YET FUNCTIONAL
 
+#include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <netdb.h>
 #include <sys/types.h> 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <string.h>
 #include <errno.h>
-#include <stdio.h>
 
 #define _H264FUN_H_IMPL
 #include "h264fun.h"
@@ -73,11 +69,11 @@ int main()
 
 	H264Funzie funzie;
 	{
-		int w = 256;
-		int h = 128;
+		int w = 128;
+		int h = 64;
 		g_mbw = w/16;
 		g_mbh = h/16;
-		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 0 },  { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 1000 }, { H2FUN_TERMINATOR, 0 } };
+		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 1 }, { H2FUN_TIME_NUMERATOR, 500 }, { H2FUN_TIME_DENOMINATOR, 60000 }, { H2FUN_TERMINATOR, 0 } };
 		r = H264FunInit( &funzie, w, h , 1, (H264FunData)RTMPSend, &rtmp, params );
 		if( r )
 		{
@@ -88,25 +84,23 @@ int main()
 
 	usleep(500000);
 	int frameno = 0;
-	int cursor = 0;
+
 	while( 1 )
 	{
 		int bk;
 		frameno++;
 
-		if( ( frameno % 50 ) == 1 )
+		if( ( frameno % 200 ) == 1 )
 		{
 			H264FakeIFrame( &funzie );
 			//H264FunEmitIFrame( &funzie );
 		}
 		else
 		{
-			double dNow = OGGetAbsoluteTime();
-			
 			for( bk = 0; bk < 2; bk++ )
 			{
-				int mbx = 0;
-				int mby = 0;
+				int mbx = frameno%g_mbw;//rand()%(funzie.w/16);
+				int mby = (frameno/g_mbw)%g_mbh;//rand()%(funzie.h/16);
 
 				int basecolor = akey?254:1;
 				uint8_t * buffer = malloc( 256 );
@@ -114,15 +108,8 @@ int main()
 				if( bk == 0 )
 				{
 					mbx = mby = 0;
+					basecolor = 1;
 				}
-				else
-				{
-					mbx = cursor%g_mbw;
-					mby = (cursor/g_mbw)%g_mbh;
-					cursor++;
-				}
-				mbx = bk;
-				mby = 0;
 
 				const uint16_t font[] = //3 px wide, buffer to 4; 5 px high, buffer to 8.
 				{
@@ -142,35 +129,40 @@ int main()
 				};
 
 				{
+					struct timeval tv;
+					time_t t;
+					struct tm *info;
 
+					gettimeofday(&tv, NULL);
+					t = tv.tv_sec;
+					info = localtime(&t);
 					char towrite[100];
 					int cx, cy;
 					int writepos = 0;
 					for( cy = 0; cy < 2; cy++ )
-					for( cx = 0; cx < 4; cx++ )
+					for( cx = 0; cx < 2; cx++ )
 					{
 						uint16_t pxls = 0;
-						
-						int num = dNow * 100;
-						int p10 = 1;
-						int j;
-						for( j = 3; j > cx; j-- )
-							p10*=10;
-
 						if( cy == 0 )
 						{
-							pxls = font[(num/p10)%10];
+							if(cx < 2)
+								pxls = font[(info->tm_min/((cx==0)?10:1))%10];
+							else
+								pxls = font[(info->tm_sec/((cx==2)?10:1))%10];
 						}
 						else if( cy == 1 )
 						{
-							pxls = font[(num/10000/p10)%10];
+							int tens = 1;
+							int tc = cx;
+							while( tc != 3) { tc++; tens*=10; }
+							pxls = font[(tv.tv_usec/100/tens)%10];
 						}
 						int px, py;
 						for( py = 0; py < 8; py++ )
-						for( px = 0; px < 4; px++ )
+						for( px = 0; px < 8; px++ )
 						{
-							int color = ((pxls>>(14-(py*3-3+px)))&1)?(255-basecolor):basecolor;
-							if( px == 3 ) color = basecolor;
+							int color = basecolor;
+							if( px < 3 ) color = ((pxls>>(14-(py*3-3+px)))&1)?(255-basecolor):basecolor;
 							int pos = (py+cy*8)*16+px+cx*4;
 							buffer[pos] = color;
 						}
@@ -181,19 +173,12 @@ int main()
 			H264FunEmitFrame( &funzie );
 			//H264FunEmitIFrame( &funzie );
 		}
-		//OGUSleep( 16000 );
-		static double dly;
-		double now = OGGetAbsoluteTime();
-		if( dly == 0 ) dly = now;
-		while( dly > now )
-		{
-			now = OGGetAbsoluteTime();
-		}
-		dly += 0.05;
+		OGUSleep( 30000 );
 	}
 
 	return 0;
 }
+
 
 
 
