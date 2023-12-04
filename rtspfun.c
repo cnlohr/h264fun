@@ -1,17 +1,19 @@
 #if defined(WINDOWS) || defined(WIN32) || defined( _WIN32 ) || defined( WIN64 )
 #include <winsock2.h>
 #define MSG_NOSIGNAL      0x200
+#define close closesocket
+#define EWOULDBLOCK EAGAIN
 #else
 #include <netdb.h>
 #include <sys/types.h> 
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 #endif
 #include "os_generic.h"
 #include "rtspfun.h"
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <string.h>
