@@ -1,6 +1,6 @@
 #if defined(WINDOWS) || defined(WIN32) || defined( _WIN32 ) || defined( WIN64 )
 #include <winsock2.h>
-#define MSG_NOSIGNAL      0x200
+#define MSG_NOSIGNAL      0x0
 #define close closesocket
 #define EWOULDBLOCK EAGAIN
 #else
@@ -100,9 +100,13 @@ void * GThread( void * v )
     
 	conn->fault = 0;
 
+#if defined(WINDOWS) || defined(WIN32) || defined( _WIN32 ) || defined( WIN64 )
+    DWORD timeoutrx = conn->rxtimedelay/1000;
+#else
 	struct timeval timeoutrx;
 	timeoutrx.tv_sec = 0;
 	timeoutrx.tv_usec = conn->rxtimedelay; //10ms
+#endif
     if( setsockopt( sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeoutrx, sizeof timeoutrx ) < 0 )
 	{
         fprintf( stderr, "Error, couldn't set timeout on rx socket.\n" );
@@ -141,6 +145,8 @@ void * GThread( void * v )
 				rx_cmd_place = 0;
 				continue;
 			}
+					printf( "-> %s\n", buf );
+
 			memcpy( rx_cmd_buffer + rx_cmd_place, buf, torecord );
 			rx_cmd_place += torecord;
 			rx_cmd_buffer[rx_cmd_place] = 0;
@@ -228,7 +234,8 @@ void * GThread( void * v )
 				else if( strncmp( rx_cmd_buffer, "OPTIONS", 5 ) == 0 )
 				{
 					int n = sprintf( sendbuff, "RTSP/1.0 200 OK\r\nCSeq: %d\r\nSession: %d\r\nPublic: DESCRIBE, SETUP, PLAY, PAUSE, OPTIONS\r\n\r\n", cseq, sessid );
-					send( sock, sendbuff, n, MSG_NOSIGNAL );
+					int ret = send( sock, sendbuff, n, MSG_NOSIGNAL );
+					printf( "OPTIONS******* %d %d\n", n ,ret );
 				}
 				else if( strncmp( rx_cmd_buffer, "PLAY", 4 ) == 0 )
 				{

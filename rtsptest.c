@@ -51,7 +51,7 @@ int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage e
 	case RTSP_PLAY:
 		demo->frameno = 0;
 		conn->rxtimedelay = 20000; // <50 Hz.
-		OGUSleep( 50000 );
+		OGUSleep( 500000 );
 		return 0;
 
 	case RTSP_TICK:
