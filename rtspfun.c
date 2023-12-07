@@ -296,8 +296,10 @@ m=video 0 RTP/AVP 96\n\
 b=RR:0\n\
 a=rtpmap:96 H264/90000\n\
 a=cliprect:0,0,256,128\n\
-a=fmtp:96 packetization-mode=2;profile-level-id=42e01f;sprop-parameter-sets=Z0IAKY3gQAgmAovAAAD6AAAdTAJIUL4=,aM46gA==;\n\
+a=fmtp:96 packetization-mode=0;profile-level-id=42e01f;\n\
 ";
+
+//XXX sprop-parameter-sets=Z0IAKY3gQAgmAovAAAD6AAAdTAJIUL4=,aM46gA==; <<< CONTAINS SPS/PPS
 
 //XXX TODO: sprop-parameter-sets should be pps/sps of encoded stream.
 
