@@ -247,7 +247,7 @@ void * GThread( void * v )
 				else if( strncmp( rx_cmd_buffer, "SETUP", 5 ) == 0 )
 				{
 					puts( uri + strlen( uri ) + 1 );
-					int n = sprintf( sendbuff, "RTSP/1.0 200 OK\r\nCSeq: %d\r\nSession: %d\r\nTransport: RTP/AVP/TCP;interleaved=0-1;ssrc=000001F6\r\nx-Dynamic-Rate: 1\r\nx-Transport-Options: late-tolerance=1.400000\r\n\r\n", cseq, conn->slotid );
+					int n = sprintf( sendbuff, "RTSP/1.0 200 OK\r\nCSeq: %d\r\nSession: %d\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=000001F6\r\nx-Dynamic-Rate: 1\r\nx-Transport-Options: late-tolerance=1.400000\r\n\r\n", cseq, conn->slotid );
 					send( sock, sendbuff, n, MSG_NOSIGNAL );
 /* Example:
 
@@ -296,12 +296,8 @@ m=video 0 RTP/AVP 96\n\
 b=RR:0\n\
 a=rtpmap:96 H264/90000\n\
 a=cliprect:0,0,256,128\n\
-a=fmtp:96 packetization-mode=0;profile-level-id=42e01f;\n\
+a=fmtp:96 packetization-mode=0;profile-level-id=42e01f;sprop-parameter-sets=Z0IAKY3gQAgmAovAAAD6AAAdTAJIUL4=,aM46gA==;\n\
 ";
-
-//XXX sprop-parameter-sets=Z0IAKY3gQAgmAovAAAD6AAAdTAJIUL4=,aM46gA==; <<< CONTAINS SPS/PPS
-
-//XXX TODO: sprop-parameter-sets should be pps/sps of encoded stream.
 
 
 //a=control:rtsp://127.0.0.1:8554/trackID=0\n\
@@ -315,6 +311,8 @@ a=fmtp:96 packetization-mode=0;profile-level-id=42e01f;\n\
 RTSP/1.0 200 OK\r\n\
 CSeq: %d\r\n\
 Content-Base: %s\r\n\
+Content-Language: english\r\n\
+Content-Encoding: utf-8\r\n\
 Content-Type: application/sdp\r\n\
 Content-Length: %d\r\n\r\n%s", cseq, uri, (int)strlen( stream_description ), stream_description );
 					send( sock, sendbuff, n, MSG_NOSIGNAL );
