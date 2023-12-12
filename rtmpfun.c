@@ -2,7 +2,7 @@
 #include <winsock2.h>
 #undef MSG_NOSIGNAL
 #define MSG_NOSIGNAL      0x000
-#define MSG_MORE MSG_PARTIAL 
+#define MSG_MORE MSG_PARTIAL
 #else
 #include <netdb.h>
 #include <sys/types.h> 

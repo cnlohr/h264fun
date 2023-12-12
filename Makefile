@@ -1,4 +1,4 @@
-all : testbase testbase.h264 testdec testbase.mp4 testfile.mp4 rtsptest rtmptest
+all : testbase testbase.h264 testdec rtsptest rtmptest
 
 #~/git/h264Bitstream/h264_analyze testbase.h264  | less
 #ffmpeg -i testbase.h264 -vcodec copy -vbsf h265_mp4toannexb -an of.h264

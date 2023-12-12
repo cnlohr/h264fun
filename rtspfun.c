@@ -116,7 +116,7 @@ void * GThread( void * v )
 	int flag = 1;
 	setsockopt(sock, IPPROTO_TCP, /*TCP_NODELAY*/1, (char *) &flag, sizeof(int));
 
-	H264Funzie funzie;
+	H264Funzie funzie = { 0 };
 	uint8_t rx_cmd_buffer[4096] = { 0 };
 	int rx_cmd_place = 0;
 	int emitting = 0; //If this doesn't match "playing" need to change stream state.
@@ -295,7 +295,7 @@ a=type:broadcast\n\
 m=video 0 RTP/AVP 96\n\
 b=RR:0\n\
 a=rtpmap:96 H264/90000\n\
-a=cliprect:0,0,256,128\n\
+a=cliprect:0,0,512,512\n\
 a=fmtp:96 packetization-mode=0;profile-level-id=42e01f;sprop-parameter-sets=Z0IAKY3gQAgmAovAAAD6AAAdTAJIUL4=,aM46gA==;\n\
 ";
 

@@ -38,7 +38,7 @@ int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage e
 		//{ H2FUN_TIME_ENABLE, 0 },
 		//const H264ConfigParam params[] = { { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 60000 }, { H2FUN_TERMINATOR, 0 } };
 		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 0 }, { H2FUN_TERMINATOR, 0 } }; // Disable timing.  (Makes it so RTSP determines timing)
-		r = H264FunInit( &demo->funzie, 256, 128, 1, RTSPSend, conn, params );
+		r = H264FunInit( &demo->funzie, 512, 512, 1, RTSPSend, conn, params );
 		if( !r )
 			demo->frameno = 0;
 		return r;
