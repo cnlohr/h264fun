@@ -76,6 +76,7 @@ typedef enum H264FunConfigType_t
 	H2FUN_TIME_NUMERATOR,   // 1000 default
 	H2FUN_TIME_DENOMINATOR, // 30000 default
 	H2FUN_CNT_TYPE,         // 0 default (only 0 and 2 supported)
+	H2FUN_SPSPPSONLY,
 	H2FUN_MAX
 } H264FunConfigType;
 

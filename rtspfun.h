@@ -33,6 +33,7 @@ struct RTSPConnection
 	int  rxtimedelay; //Implicitly controls the frame rate.
 	char working_url[1024];
 	void * opaque;
+	const char * spropparametersets;
 };
 
 enum RTSPControlMessage
@@ -65,7 +66,7 @@ struct RTSPSystem
 // port RTSP_DEFAULT_PORT is default for RTSP.
 int RTSPFunStart( struct RTSPSystem * system, int port, RTSPControl ctrl, int max_connections );
 void RTSPSend( void * connection, uint8_t * buffer, int len );
-
+void RTSPReconfigureDelay( void * connection );
 void RTSPFunStop( struct RTSPSystem * system );
 
 #ifdef _RTSPFUN_H_IMPLEMENTATION

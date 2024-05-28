@@ -41,12 +41,12 @@ static int H264FUNDeBruijnLog2( uint64_t v )
 	// Otherwise, for normal C, this seems like a spicy way to roll.
 
 	// Round v up!
-    v |= v >> 1;
-    v |= v >> 2;
-    v |= v >> 4;
-    v |= v >> 8;
-    v |= v >> 16;
-    v |= v >> 32;
+	v |= v >> 1;
+	v |= v >> 2;
+	v |= v >> 4;
+	v |= v >> 8;
+	v |= v >> 16;
+	v |= v >> 32;
 
 	static const int MultiplyDeBruijnBitPosition2[128] = 
 	{
@@ -122,7 +122,7 @@ static void FreeFunzieUpdate( struct H264FunzieUpdate_t * thisupdate )
 static int H2GetParamValue( const H264ConfigParam * params, H264FunConfigType p )
 {
 	if( p >= H2FUN_MAX ) return 0;
-	static const int defaults[] = { 0, 1, 1000, 30000, 0 }; 
+	static const int defaults[] = { 0, 1, 10000, 300000, 0 }; 
 	int i;
 	if( params )
 	{
@@ -245,7 +245,7 @@ int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264F
 	// A completely dark frame.
 	memset( H2mb_dark, 128, 256 );
 	memset( H2mb_dark+256, 128, 128 );
-	
+
 	if( ( w & 0xf ) || ( h & 0xf ) ) return -1;
 	fun->bytesofar = 0;
 	fun->bitssofarm7 = 7;
@@ -260,14 +260,24 @@ int H264FUNPREFIX H264FunInit( H264Funzie * fun, int w, int h, int slices, H264F
 	fun->frameupdates = calloc( sizeof( H264FunzieUpdate ), mbw * mbh );
 
 	H264FunConfigType t;
-
+	int spsppsonly = 0;
 	int cfgsize = 0;
-	for( ; params[cfgsize].type != H2FUN_TERMINATOR; cfgsize++ ); cfgsize++;
+	for( ; params[cfgsize].type != H2FUN_TERMINATOR; cfgsize++ )
+	{
+		if( params[cfgsize].type == H2FUN_SPSPPSONLY )
+			spsppsonly = 1;
+	}
 
 	fun->params = malloc( cfgsize * sizeof( const H264ConfigParam ) );
 	memcpy( fun->params, params, cfgsize * sizeof( const H264ConfigParam ) );
-	
+
 	H264SendSPSPPS( fun, 1 );
+
+	if( spsppsonly )
+	{
+		fun->datacb( fun->opaque, 0, -2 );
+		return 0;
+	}
 
 	int slice = 0;
 	for( slice = 0; slice < slices; slice++ )

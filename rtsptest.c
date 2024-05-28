@@ -17,6 +17,20 @@ struct OpaqueDemo
 	H264Funzie funzie;
 };
 
+char sprop[1024];
+
+int CommonFunInit( H264Funzie * funzie, H264FunData datacb, void * opaque )
+{
+	const int FPS = 1;
+
+//{ H2FUN_TIME_ENABLE, 0 }
+//	const H264ConfigParam params_normal[] = { { H2FUN_TIME_NUMERATOR, 10000 }, { H2FUN_TIME_DENOMINATOR, FPS*10000 }, { H2FUN_TERMINATOR, 0 } };
+//	const H264ConfigParam params_spsonly[] = { { H2FUN_TIME_NUMERATOR, 10000 }, { H2FUN_TIME_DENOMINATOR, FPS*10000 }, { H2FUN_SPSPPSONLY, 0 }, { H2FUN_TERMINATOR, 0 } };
+	const H264ConfigParam params_normal[] = { { H2FUN_TIME_ENABLE, 0 }, { H2FUN_TERMINATOR, 0 } };
+	const H264ConfigParam params_spsonly[] = { { H2FUN_TIME_ENABLE, 0 }, { H2FUN_SPSPPSONLY, 0 }, { H2FUN_TERMINATOR, 0 } };
+	const H264ConfigParam * params = ( opaque == 0 ) ? params_spsonly : params_normal;
+	return H264FunInit( funzie, 512, 512, 1, datacb, opaque, params );
+}
 
 int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage event )
 {
@@ -35,10 +49,7 @@ int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage e
 			conn->opaque = malloc( sizeof( struct OpaqueDemo ) );
 		demo = conn->opaque;
 
-		//{ H2FUN_TIME_ENABLE, 0 },
-		//const H264ConfigParam params[] = { { H2FUN_TIME_NUMERATOR, 1000 }, { H2FUN_TIME_DENOMINATOR, 60000 }, { H2FUN_TERMINATOR, 0 } };
-		const H264ConfigParam params[] = { { H2FUN_TIME_ENABLE, 0 }, { H2FUN_TERMINATOR, 0 } }; // Disable timing.  (Makes it so RTSP determines timing)
-		r = H264FunInit( &demo->funzie, 512, 512, 1, RTSPSend, conn, params );
+		r = CommonFunInit( &demo->funzie, RTSPSend, conn );
 		if( !r )
 			demo->frameno = 0;
 		return r;
@@ -50,7 +61,6 @@ int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage e
 
 	case RTSP_PLAY:
 		demo->frameno = 0;
-		conn->rxtimedelay = 20000; // <50 Hz.
 		OGUSleep( 500000 );
 		return 0;
 
@@ -102,16 +112,16 @@ int RTSPControlCallback( struct RTSPConnection * conn, enum RTSPControlMessage e
 					if( cy == 0 )
 					{
 						if(cx < 2)
-							pxls = font[(((int)(dNow*100))/((cx==0)?10:1))%10];
+							pxls = font[(((long long int)(dNow*100))/((cx==0)?10:1))%10];
 						else
-							pxls = font[(((int)dNow)/((cx==2)?10:1))%10];
+							pxls = font[(((long long int)dNow)/((cx==2)?10:1))%10];
 					}
 					else if( cy == 1 )
 					{
 						int tens = 1;
 						int tc = cx;
 						while( tc != 3) { tc++; tens*=10; }
-						pxls = font[(((int)(dNow*100000))/100/tens)%10];
+						pxls = font[(((long long int)(dNow*100000))/100/tens)%10];
 					}
 					int px, py;
 					for( py = 0; py < 8; py++ )
@@ -154,9 +164,94 @@ void * InputThread( void * v )
 	}
 }
 
-int main()
+
+//from http://stackoverflow.com/questions/342409/how-do-i-base64-encode-decode-in-c
+static const char encoding_table[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+                                      'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+                                      'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+                                      'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+                                      'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+                                      'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+                                      'w', 'x', 'y', 'z', '0', '1', '2', '3',
+                                      '4', '5', '6', '7', '8', '9', '+', '/'};
+
+static const int mod_table[] = {0, 2, 1};
+
+void my_base64_encode(const unsigned char *data, unsigned int input_length, uint8_t * encoded_data )
 {
+
+	int i, j;
+	int output_length = 4 * ((input_length + 2) / 3);
+
+	if( !encoded_data ) return;
+		if( !data ) { encoded_data[0] = '='; encoded_data[1] = 0; return; }
+
+	for (i = 0, j = 0; i < input_length; ) {
+
+		uint32_t octet_a = i < input_length ? (unsigned char)data[i++] : 0;
+		uint32_t octet_b = i < input_length ? (unsigned char)data[i++] : 0;
+		uint32_t octet_c = i < input_length ? (unsigned char)data[i++] : 0;
+
+		uint32_t triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
+
+		encoded_data[j++] = encoding_table[(triple >> 3 * 6) & 0x3F];
+		encoded_data[j++] = encoding_table[(triple >> 2 * 6) & 0x3F];
+		encoded_data[j++] = encoding_table[(triple >> 1 * 6) & 0x3F];
+		encoded_data[j++] = encoding_table[(triple >> 0 * 6) & 0x3F];
+	}
+
+	for (i = 0; i < mod_table[input_length % 3]; i++)
+        	encoded_data[output_length - 1 - i] = '=';
+
+	encoded_data[j] = 0;
+}
+
+
+uint8_t spropbuffer[1024];
+int spropbufferplace = 0;
+char * sproptail;
+
+void SPropRx( void * opaque, uint8_t * data, int bytes )
+{
+	if( bytes >= 0 )
+	{
+		if( bytes + spropbufferplace < sizeof( spropbuffer ) )
+		{
+			memcpy( spropbuffer + spropbufferplace, data, bytes );
+			spropbufferplace += bytes;
+		}
+	}
+	else if( bytes == -4 || bytes == -3 )
+	{
+		// A sync.
+		char b64buff[spropbufferplace*2];
+		my_base64_encode( spropbuffer, spropbufferplace, b64buff );
+		int blen = strlen( b64buff );
+		if( blen + sproptail - sprop < sizeof( sprop ) - 2 )
+		{
+			memcpy( sproptail, b64buff, blen );
+			sproptail += blen;
+			if( bytes == -4 )
+				sproptail[0] = ',';
+			else
+				sproptail[0] = ';';
+			sproptail++;
+			sproptail[1] = 0;
+		}
+		spropbufferplace = 0;
+	}
+}
+
+
+int main() {
 	OGCreateThread( InputThread, 0 );
+
+	sproptail = sprop;
+
+	H264Funzie stream_template;
+	CommonFunInit( &stream_template, SPropRx, 0 );
+	H264FunClose( &stream_template );
+
 	struct RTSPSystem system;
 	if( StartRTSPFun( &system, RTSP_DEFAULT_PORT, RTSPControlCallback, DEFAULT_MAX_CONNS ) )
 	{

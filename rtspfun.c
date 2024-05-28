@@ -91,30 +91,40 @@ void RTSPSend( void * opaque, uint8_t * buffer, int bytes )
 	return;
 }
 
+void RTSPReconfigureDelay( void * connection )
+{
+	struct RTSPConnection * conn = (struct RTSPConnection*)connection;
+	int sock = conn->sock;
+
+#if defined(WINDOWS) || defined(WIN32) || defined( _WIN32 ) || defined( WIN64 )
+	DWORD timeoutrx = conn->rxtimedelay/1000;
+#else
+	struct timeval timeoutrx;
+	timeoutrx.tv_sec = 0;
+	timeoutrx.tv_usec = conn->rxtimedelay;
+#endif
+	if( setsockopt( sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeoutrx, sizeof timeoutrx ) < 0 )
+	{
+		fprintf( stderr, "Error, couldn't set timeout on rx socket.\n" );
+		close( sock );
+		return;
+	}
+
+	int flag = 1;
+	setsockopt(sock, IPPROTO_TCP, /*TCP_NODELAY*/1, (char *) &flag, sizeof(int));
+
+}
+
 void * GThread( void * v )
 {
 	struct RTSPConnection * conn = (struct RTSPConnection*)v;
 	int sock = conn->sock;
 	int r;
 	int timeout = 0;
-    
+
 	conn->fault = 0;
 
-#if defined(WINDOWS) || defined(WIN32) || defined( _WIN32 ) || defined( WIN64 )
-    DWORD timeoutrx = conn->rxtimedelay/1000;
-#else
-	struct timeval timeoutrx;
-	timeoutrx.tv_sec = 0;
-	timeoutrx.tv_usec = conn->rxtimedelay; //10ms
-#endif
-    if( setsockopt( sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeoutrx, sizeof timeoutrx ) < 0 )
-	{
-        fprintf( stderr, "Error, couldn't set timeout on rx socket.\n" );
-		goto closeconn;
-	}
-
-	int flag = 1;
-	setsockopt(sock, IPPROTO_TCP, /*TCP_NODELAY*/1, (char *) &flag, sizeof(int));
+	RTSPReconfigureDelay( conn );
 
 	H264Funzie funzie = { 0 };
 	uint8_t rx_cmd_buffer[4096] = { 0 };
@@ -136,6 +146,7 @@ void * GThread( void * v )
 		}
 		if( r > 0 )
 		{
+			if( conn->playing ) continue;
 			timeout = 0;
 			int torecord = r + rx_cmd_place;
 			if( torecord + rx_cmd_place >= sizeof( rx_cmd_buffer ) )
@@ -145,8 +156,14 @@ void * GThread( void * v )
 				rx_cmd_place = 0;
 				continue;
 			}
-					printf( "-> %s\n", buf );
-
+#if 0
+			printf( "RX:%d:%d\n", sock, r );
+			int i;
+			for( i = 0; i < r; i++ )
+				printf( "%02x,", buf[i] );
+			printf( "\n" );
+//			printf( "->%d:%s\n", r, buf );
+#endif
 			memcpy( rx_cmd_buffer + rx_cmd_place, buf, torecord );
 			rx_cmd_place += torecord;
 			rx_cmd_buffer[rx_cmd_place] = 0;
@@ -180,7 +197,6 @@ void * GThread( void * v )
 						//}
 						//printf( "\n" );
 
-						
 						if( remain > 0 )
 						{
 							int k, l = len+4;;
@@ -196,7 +212,7 @@ void * GThread( void * v )
 			}
 			if( conn->rxmode == 0 && rx_cmd_place > 4 && strncmp( rx_cmd_buffer + rx_cmd_place - 4, "\r\n\r\n", 4 ) == 0 )
 			{
-				puts( rx_cmd_buffer );
+				//puts( rx_cmd_buffer );
 				char sendbuff[1024];
 				char * uri = 0;
 				int cseq = 0;
@@ -235,7 +251,7 @@ void * GThread( void * v )
 				{
 					int n = sprintf( sendbuff, "RTSP/1.0 200 OK\r\nCSeq: %d\r\nSession: %d\r\nPublic: DESCRIBE, SETUP, PLAY, PAUSE, OPTIONS\r\n\r\n", cseq, sessid );
 					int ret = send( sock, sendbuff, n, MSG_NOSIGNAL );
-					printf( "OPTIONS******* %d %d\n", n ,ret );
+					//printf( "OPTIONS******* %d %d\n", n ,ret );
 				}
 				else if( strncmp( rx_cmd_buffer, "PLAY", 4 ) == 0 )
 				{
@@ -246,8 +262,8 @@ void * GThread( void * v )
 				}
 				else if( strncmp( rx_cmd_buffer, "SETUP", 5 ) == 0 )
 				{
-					puts( uri + strlen( uri ) + 1 );
-					int n = sprintf( sendbuff, "RTSP/1.0 200 OK\r\nCSeq: %d\r\nSession: %d\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=000001F6\r\nx-Dynamic-Rate: 1\r\nx-Transport-Options: late-tolerance=1.400000\r\n\r\n", cseq, conn->slotid );
+				//	puts( uri + strlen( uri ) + 1 );
+					int n = sprintf( sendbuff, "RTSP/1.0 200 OK\r\nCSeq: %d\r\nSession: %d\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=000001F6\r\nx-Dynamic-Rate: 1\r\nx-Transport-Options: late-tolerance=100.400000\r\n\r\n", cseq, conn->slotid );
 					send( sock, sendbuff, n, MSG_NOSIGNAL );
 /* Example:
 
@@ -284,7 +300,7 @@ x-Transport-Options: late-tolerance=1.400000
 				}
 				else if( strncmp( rx_cmd_buffer, "DESCRIBE", 8 ) == 0 )
 				{
-					const char * stream_description = stream_description = "\
+					const char * stream_description_const = "\
 v=0\r\n\
 o=- 0 0 IN IP4 0.0.0.0\r\n\
 s=Unnamed\n\
@@ -296,9 +312,13 @@ m=video 0 RTP/AVP 96\n\
 b=RR:0\n\
 a=rtpmap:96 H264/90000\n\
 a=cliprect:0,0,512,512\n\
-a=fmtp:96 packetization-mode=0;profile-level-id=42e01f;sprop-parameter-sets=Z0IAKY3gQAgmAovAAAD6AAAdTAJIUL4=,aM46gA==;\n\
+a=fmtp:96 packetization-mode=0;profile-level-id=42e01f;sprop-parameter-sets=%s;\n\
 ";
+//sprop-parameter-sets=Z0IAKY3gQAgmAovAAAD6AAAdTAJIUL4=,aM46gA==;\n\
 
+					int blen = ( strlen( stream_description_const ) + strlen( conn->spropparametersets ) + 5 );
+					char * buffer = malloc( blen + 1 );
+					int splen = snprintf( buffer, blen, stream_description_const, conn->spropparametersets );
 
 //a=control:rtsp://127.0.0.1:8554/trackID=0\n\
 
@@ -314,8 +334,9 @@ Content-Base: %s\r\n\
 Content-Language: english\r\n\
 Content-Encoding: utf-8\r\n\
 Content-Type: application/sdp\r\n\
-Content-Length: %d\r\n\r\n%s", cseq, uri, (int)strlen( stream_description ), stream_description );
+Content-Length: %d\r\n\r\n%s", cseq, uri, splen, buffer );
 					send( sock, sendbuff, n, MSG_NOSIGNAL );
+					free( buffer );
 				}
 /* Example valid stream: (webcam)
 v=0
@@ -414,7 +435,7 @@ a=control:trackID=1
 		timeout++;
 		if( timeout > 6000 )
 		{
-		//	fprintf( stderr, "Timeout\n" );
+			fprintf( stderr, "Timeout ID: %d\n", conn->slotid );
 			goto closeconn;
 		}
 	}
@@ -501,7 +522,7 @@ int StartRTSPFun( struct RTSPSystem * system, int port, RTSPControl ctrl, int ma
 		struct sockaddr_in clientaddr;
 		clientlen = sizeof( clientaddr );
 		int rxsock = accept( system->sock, (struct sockaddr *) &clientaddr, &clientlen );
-  
+
 		if( rxsock < 0 )
 		{
 			fprintf( stderr, "Error, couldn't accept rtsp socket.\n" );
@@ -520,11 +541,14 @@ int StartRTSPFun( struct RTSPSystem * system, int port, RTSPControl ctrl, int ma
 			struct RTSPConnection * conn = system->connections + i;
 			if( conn->connected == 0 )
 			{
+				char * peername = inet_ntoa( clientaddr.sin_addr );
+				printf( "accept:%s:%d as %d/%d on %d\n", peername, ntohs( clientaddr.sin_port ), i, max_connections, rxsock );
 				conn->sock = rxsock;
 				conn->playing = 0;
 				conn->connected = 1;
 				conn->tx_buffer_place = 16;
 				conn->slotid = i;
+				conn->spropparametersets = "Z0IAKY3gQAgmAovAAAD6AAAdTAJIUL4=,aM46gA==;";
 				conn->system = system;
 				memset( conn->working_url, 0, sizeof( conn->working_url ) );
 				conn->rxtimedelay = 10000;
