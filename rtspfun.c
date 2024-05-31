@@ -146,7 +146,14 @@ void * GThread( void * v )
 		}
 		if( r > 0 )
 		{
-			if( conn->playing ) continue;
+			//int j;
+			//printf( "RX: %d\n", r );
+			//for( j = 0; j < r; j++ )
+			//{
+			//	printf( "%02x ", buf[j] );
+			//}
+			//printf( "\n" );
+			//if( conn->playing ) continue;
 			timeout = 0;
 			int torecord = r + rx_cmd_place;
 			if( torecord + rx_cmd_place >= sizeof( rx_cmd_buffer ) )
